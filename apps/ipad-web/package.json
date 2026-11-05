@@ -1,0 +1,24 @@
+{
+  "name": "@genoffice/ipad-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "vite build && node scripts/bundle.mjs && node --import tsx scripts/template.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@genoffice/docx-engine": "*",
+    "@genoffice/i18n": "*",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.12",
+    "tsx": "^4.21.0"
+  }
+}

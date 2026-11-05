@@ -1,0 +1,230 @@
+:root {
+  --accent: #217346;
+  --accent-dark: #185c37;
+  --accent-soft: #e9f3ed;
+  font:
+    16px -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  background: var(--surface);
+  color: var(--text);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+#app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+button,
+input,
+select {
+  min-height: 44px;
+  padding: 8px 12px;
+}
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:active {
+  background: var(--pressed);
+}
+button:disabled,
+select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+#grid:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#sheets {
+  flex: 1;
+  min-width: 120px;
+  max-width: 320px;
+}
+#address {
+  width: 100px;
+}
+.notice {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+#editor {
+  display: grid;
+  grid-template-columns: minmax(80px, 130px) 1fr;
+  gap: 8px;
+  align-items: center;
+}
+#editor label {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+#value {
+  min-height: 48px;
+  max-height: 150px;
+  width: 100%;
+  padding: 10px;
+  resize: vertical;
+}
+#value[readonly] {
+  background: var(--surface-subtle);
+}
+.editor-actions {
+  display: flex;
+  gap: 8px;
+  grid-column: 2;
+  flex-wrap: wrap;
+}
+.editor-actions button:first-of-type {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+.formula {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  overflow-wrap: anywhere;
+  max-height: 60px;
+  overflow: auto;
+}
+#grid {
+  flex: 1;
+  min-height: 100px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  direction: ltr;
+  overscroll-behavior: contain;
+}
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  min-width: 100%;
+}
+caption {
+  text-align: start;
+  padding: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+th {
+  background: var(--surface-subtle);
+  font-weight: 500;
+  min-width: 52px;
+  height: 44px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+td {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0;
+}
+td button {
+  width: 132px;
+  min-width: 132px;
+  height: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+td .numeric {
+  text-align: right;
+}
+td .cached {
+  font-style: italic;
+}
+td .selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+nav button {
+  flex: 1;
+}
+#status {
+  margin: 0;
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+#status[role='alert'] {
+  color: var(--danger);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #70c99a;
+    --accent-dark: #b5e7ca;
+    --accent-soft: #243d30;
+  }
+}
+@media (max-width: 600px) {
+  #app {
+    padding: 8px;
+    gap: 8px;
+  }
+  #editor {
+    grid-template-columns: 90px 1fr;
+  }
+  .toolbar label {
+    font-size: 13px;
+  }
+  nav button {
+    font-size: 13px;
+    padding: 6px;
+  }
+}

@@ -1,0 +1,5 @@
+EveryOffice.xcodeproj/
+DerivedData/
+build/
+*.xcuserstate
+EveryOffice/Info.plist

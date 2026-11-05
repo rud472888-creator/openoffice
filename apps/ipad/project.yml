@@ -1,0 +1,124 @@
+name: EveryOffice
+options:
+  bundleIdPrefix: app.everyoffice
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "2"
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  EveryOffice:
+    type: application
+    platform: iOS
+    sources:
+      - path: EveryOffice
+        excludes:
+          - Resources
+          - Info.plist
+      - path: EveryOffice/Resources/Assets.xcassets
+      - path: EveryOffice/Resources/Localizable.xcstrings
+      - path: EveryOffice/Resources/DocumentEditor
+        type: folder
+        buildPhase: resources
+      - path: EveryOffice/Resources/SpreadsheetEditor
+        type: folder
+        buildPhase: resources
+      - path: EveryOffice/Resources/PresentationEditor
+        type: folder
+        buildPhase: resources
+      - path: EveryOffice/Resources/Templates
+        type: folder
+        buildPhase: resources
+      - path: ../../LICENSE
+        buildPhase: resources
+      - path: EveryOffice/Resources/Notices/NOTICE
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.everyoffice.ipad
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: every office
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: EveryOffice/Info.plist
+      properties:
+        CFBundleLocalizations:
+          - en
+          - ko
+          - ja
+          - zh-Hans
+          - zh-Hant
+          - fr
+          - de
+          - es
+          - th
+          - id
+          - ru
+          - ar
+          - pt
+          - it
+          - pl
+          - cs
+          - nl
+          - ms
+          - he
+          - hi
+          - vi
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Office documents
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - public.text
+              - net.daringfireball.markdown
+              - com.adobe.pdf
+              - org.openxmlformats.wordprocessingml.document
+              - org.openxmlformats.spreadsheetml.sheet
+              - org.openxmlformats.presentationml.presentation
+              - public.rtf
+              - public.html
+              - public.image
+  EveryOfficeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EveryOfficeTests
+    dependencies:
+      - target: EveryOffice
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  EveryOfficeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: EveryOfficeUITests
+    dependencies:
+      - target: EveryOffice
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  EveryOffice:
+    build:
+      targets:
+        EveryOffice: all
+    test:
+      targets:
+        - EveryOfficeTests
+        - EveryOfficeUITests

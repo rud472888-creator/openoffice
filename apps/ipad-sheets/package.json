@@ -1,0 +1,17 @@
+{
+  "name": "@genoffice/ipad-sheets",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "vite build && node --import tsx scripts/create-template.ts",
+    "test": "node --import tsx tests/workbook.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@genoffice/zip-gate": "*",
+    "fast-xml-parser": "^5.5.8",
+    "jszip": "^3.10.1"
+  }
+}
