@@ -18,9 +18,15 @@ struct EditorAssetResolver {
         if components.last == "" { components[components.count - 1] = "index.html" }
         guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return nil }
         let resourceRoot = root.standardizedFileURL.resolvingSymlinksInPath()
-        let target = components.reduce(resourceRoot) { $0.appendingPathComponent($1) }
-            .standardizedFileURL.resolvingSymlinksInPath()
-        guard target.path.hasPrefix(resourceRoot.path + "/") else { return nil }
+        var target = resourceRoot
+        for component in components {
+            target = target.appendingPathComponent(component).standardizedFileURL
+            // Resolving the full path can leave a symlink unresolved when its
+            // final file is absent. Bundled assets never need symlink traversal;
+            // reject links at each component, including dangling links.
+            guard (try? FileManager.default.destinationOfSymbolicLink(atPath: target.path)) == nil,
+                  target.path.hasPrefix(resourceRoot.path + "/") else { return nil }
+        }
         return target
     }
 

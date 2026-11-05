@@ -21,7 +21,7 @@ final class EditorNavigationPolicyTests: XCTestCase {
         for url in ["about:blank", "about:srcdoc", "about:blank#preview", "blob:http://localhost:12345/identifier", "http://localhost:12345/token/drawio/index.html"] {
             XCTAssertTrue(allows(url), url)
         }
-        for url in ["data:text/html,unsafe", "javascript:alert(1)", "https://example.com", "http://localhost:12345/wrong/index.html", "blob:https://example.com/identifier", "blob:http://localhost:23456/identifier", "file:///private/document.docx"] {
+        for url in ["about:blank?url=https://example.com", "about:srcdoc?query=1", "about://blank", "about:blank/other", "about:%62lank", "data:text/html,unsafe", "javascript:alert(1)", "https://example.com", "http://localhost:12345/wrong/index.html", "blob:https://example.com/identifier", "blob:http://localhost:23456/identifier", "file:///private/document.docx"] {
             XCTAssertFalse(allows(url), url)
         }
     }

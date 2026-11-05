@@ -252,8 +252,9 @@ if isinstance(summary, dict):
               ('Passed', 'passedTests'), ('Failed', 'failedTests'),
               ('Skipped', 'skippedTests'), ('Expected failures', 'expectedFailures')]
     lines.extend(f'- {label}: {summary[key]}' for label, key in fields if key in summary)
-    print('Simulator test summary: ' + ', '.join(
-        f'{label}={summary[key]}' for label, key in fields if key in summary))
+    result_text = ', '.join(f'{label}={summary[key]}' for label, key in fields if key in summary)
+    print('Simulator test summary: ' + result_text)
+    print('::notice title=iPad executed test results::' + escape(result_text))
 else:
     # Build failures and older xcresulttool versions may have no summary JSON.
     counts = re.findall(r'Executed \d+ tests?, with \d+ failures?[^\n]*', log)

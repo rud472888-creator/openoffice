@@ -32,6 +32,16 @@ final class LocalEditorAssetServerTests: XCTestCase {
         try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationURL: outside)
         XCTAssertNil(EditorAssetResolver(root: root, token: "token").resourceURL(for: "/token/escape/document.docx"))
+        // Cover absent leaves, existing leaves, and dangling links separately.
+        try Data("private".utf8).write(to: outside.appendingPathComponent("document.docx"))
+        XCTAssertNil(EditorAssetResolver(root: root, token: "token").resourceURL(for: "/token/escape/document.docx"))
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("dangling"),
+            withDestinationURL: directory.appendingPathComponent("missing"))
+        XCTAssertNil(EditorAssetResolver(root: root, token: "token").resourceURL(for: "/token/dangling/document.docx"))
+        try Data("asset".utf8).write(to: root.appendingPathComponent("index.html"))
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("alias.html"),
+            withDestinationURL: root.appendingPathComponent("index.html"))
+        XCTAssertNil(EditorAssetResolver(root: root, token: "token").resourceURL(for: "/token/alias.html"))
     }
 
     func testResolverDecodesUnicodeAndUsesWasmAndFontMimeTypes() {
