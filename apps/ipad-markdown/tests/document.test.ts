@@ -63,6 +63,18 @@ describe('shared Markdown round trips', () => {
       )
     }
   })
+  it('uses the desktop final-newline policy for new source files without changing existing files', () => {
+    for (const kind of ['txt', 'json']) {
+      const content = kind === 'json' ? '{"name":"한글"}' : 'A note saved on my iPad. 한글'
+      const blank = new NoteDocument(encode(''), kind)
+      const saved = blank.saveSource(content)
+      expect(decode(saved)).toBe(content + '\n')
+      const reopened = new NoteDocument(saved, kind)
+      expect(Array.from(reopened.saveSource(content + '\n'))).toEqual(Array.from(saved))
+      const existing = new NoteDocument(encode(content), kind)
+      expect(decode(existing.saveSource(content + ' '))).toBe(content + ' ')
+    }
+  })
   it('rejects invalid UTF-8 rather than silently replacing bytes', () => {
     expect(() => new NoteDocument(new Uint8Array([255, 254, 0]), 'txt')).toThrow()
   })

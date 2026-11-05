@@ -51,17 +51,21 @@ final class BundledEditorBridgeTests: XCTestCase {
     }
 
     @MainActor
-    func testPlainTextInputSavesExactBytesWithoutAccessibilityNewlines() async throws {
+    func testPlainTextInputPreservesDesktopNewlinePolicyThroughWebKit() async throws {
         let text = "A note saved on my iPad. 한글"
-        try await exercise(resource: "MarkdownEditor", kind: "txt", source: Data(), format: .text, typedText: text)
-        try await exercise(resource: "MarkdownEditor", kind: "txt", source: Data(text.utf8), format: .text, unchanged: true)
+        // The desktop source writer gives a new empty file a final newline.
+        let expected = text + "\n"
+        try await exercise(resource: "MarkdownEditor", kind: "txt", source: Data(), format: .text,
+                           typedText: text, expectedText: expected)
+        try await exercise(resource: "MarkdownEditor", kind: "txt", source: Data(expected.utf8), format: .text, unchanged: true)
     }
 
     private enum SavedFormat { case zip, hwp, html, drawio, text }
 
     @MainActor
     private func exercise(resource: String, kind: String, template: String? = nil, source: Data? = nil,
-                          format: SavedFormat, unchanged: Bool = false, typedText: String? = nil) async throws {
+                          format: SavedFormat, unchanged: Bool = false, typedText: String? = nil,
+                          expectedText: String? = nil) async throws {
         let started = Date()
         let deadline = started.addingTimeInterval(60)
         func remaining() -> TimeInterval { max(0.1, deadline.timeIntervalSinceNow) }
@@ -118,7 +122,7 @@ final class BundledEditorBridgeTests: XCTestCase {
         case .text: XCTAssertNotNil(String(data: saved, encoding: .utf8))
         }
         if unchanged { XCTAssertEqual(saved, bytes, "\(resource)/\(kind) guarantees original-byte no-op saves") }
-        if let typedText { XCTAssertEqual(saved, Data(typedText.utf8), "Plain-text save must contain exactly the input bytes") }
+        if let expectedText { XCTAssertEqual(saved, Data(expectedText.utf8), "Plain-text save must preserve the desktop source format exactly") }
         XCTAssertLessThanOrEqual(Date().timeIntervalSince(started), 60, "The complete route contract must finish within 60 seconds")
     }
 }

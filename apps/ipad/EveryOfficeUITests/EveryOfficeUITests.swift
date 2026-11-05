@@ -95,9 +95,9 @@ final class EveryOfficeUITests: XCTestCase {
     @MainActor
     private func assertSourceText(_ expected: String, in editor: XCUIElement, app: XCUIApplication,
                                   file: StaticString = #filePath, line: UInt = #line) {
-        // WebKit's contenteditable AX snapshot can lag input and include the
-        // CodeMirror block's two structural newlines. File bytes are checked
-        // independently by the real-bundle plain-text bridge test.
+        // WebKit's contenteditable AX snapshot can lag input. Reopened new
+        // notes have the desktop writer's final newline plus an AX block
+        // separator. The real-bundle test checks exact file bytes separately.
         let matches = NSPredicate { _, _ in
             guard let value = editor.value as? String else { return false }
             return value == expected || value == expected + "\n\n"

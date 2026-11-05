@@ -40,6 +40,8 @@ try {
         everyOffice: {
           postMessage(message) {
             window.nativeMessages.push(message)
+            if (window.autoSave && message.type === 'changed')
+              queueMicrotask(() => window.everyOffice.saveDocument())
           },
         },
       },
@@ -106,6 +108,44 @@ try {
     }
     await page.screenshot({ path: fileURLToPath(new URL(`markdown-${kind}.png`, out)) })
   }
+  // Exercise source input with per-change saves, as the native host does.
+  await page.evaluate(() =>
+    window.everyOffice.openDocument({ name: 'Untitled.txt', kind: 'txt', base64: '' }),
+  )
+  await page.evaluate(() => {
+    window.nativeMessages = []
+    window.autoSave = true
+  })
+  await page.locator('.cm-content').click()
+  const typed = 'A note saved on my iPad.'
+  await page.keyboard.type(typed, { delay: 0 })
+  const expectedSource = typed + '\n'
+  await page.waitForFunction(
+    (expected) =>
+      window.nativeMessages.filter((message) => message.type === 'save').at(-1)?.base64 ===
+      expected,
+    Buffer.from(expectedSource).toString('base64'),
+  )
+  const rapid = await page.evaluate(() => ({
+    changed: window.nativeMessages.filter((message) => message.type === 'changed'),
+    saved: window.nativeMessages.filter((message) => message.type === 'save'),
+  }))
+  assert.ok(rapid.changed.length > 1)
+  assert.equal(rapid.saved.at(-1).revision, rapid.changed.at(-1).revision)
+  assert.equal(Buffer.from(rapid.saved.at(-1).base64, 'base64').toString('utf8'), expectedSource)
+  await page.evaluate(() => {
+    window.autoSave = false
+  })
+  await page.evaluate(
+    (base64) => window.everyOffice.openDocument({ name: 'Reopened.txt', kind: 'txt', base64 }),
+    rapid.saved.at(-1).base64,
+  )
+  assert.equal(await page.evaluate(() => window.everyOffice.saveDocument()), true)
+  const reopenedSource = await page.evaluate(() =>
+    window.nativeMessages.filter((message) => message.type === 'save').at(-1),
+  )
+  assert.equal(Buffer.from(reopenedSource.base64, 'base64').toString('utf8'), expectedSource)
+
   await page.evaluate(
     (base64) =>
       window.everyOffice.openDocument({
