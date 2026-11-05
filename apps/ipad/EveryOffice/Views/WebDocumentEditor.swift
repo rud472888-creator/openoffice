@@ -27,7 +27,7 @@ struct WebDocumentEditor: View {
     }
 }
 
-private struct OfficeWebView: UIViewRepresentable {
+struct OfficeWebView: UIViewRepresentable {
     let library: DocumentLibrary
     let document: OfficeDocument
     let resource: String
@@ -135,6 +135,7 @@ private struct OfficeWebView: UIViewRepresentable {
                 if !draftInProgress { requestSave() }
             case "opened":
                 library.readyDocumentIDs.insert(document.id)
+                if saveAgain { saveAgain = false; requestSave() }
             case "save":
                 do {
                     guard let base64 = body["base64"] as? String, let data = Data(base64Encoded: base64) else { throw LibraryError.invalidFile }
@@ -244,6 +245,8 @@ private struct OfficeWebView: UIViewRepresentable {
 
         func requestSave() {
             guard let webView else { return }
+            // Editors can ignore saves until their asynchronous document load finishes.
+            guard library.readyDocumentIDs.contains(document.id) else { saveAgain = true; return }
             if saving { saveAgain = true; return }
             saving = true
             library.savingDocumentIDs.insert(document.id)

@@ -1,6 +1,8 @@
 import { cpSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+process.chdir(fileURLToPath(new URL('../', import.meta.url)))
 const target = resolve('../ipad/EveryOffice/Resources/HwpEditor')
 rmSync(target, { recursive: true, force: true })
 mkdirSync(target, { recursive: true })
