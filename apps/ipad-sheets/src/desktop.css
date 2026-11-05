@@ -44,6 +44,16 @@ select {
 .ribbon-tabs {
   overflow-x: auto;
 }
+.ribbon-tabs > button,
+.ribbon-tabs > .autosave-toggle {
+  flex-shrink: 0;
+}
+.ribbon-tabs > button:not(.qa-btn) {
+  min-width: max-content;
+}
+.ribbon-tabs > .workbook-status {
+  min-width: 0;
+}
 @media (pointer: coarse) {
   .excel-header button {
     min-height: 44px;
