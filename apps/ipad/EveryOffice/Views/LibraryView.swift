@@ -8,6 +8,8 @@ struct LibraryView: View {
     @State private var importing = false
     @State private var showingAbout = false
     @State private var pendingDeletion: OfficeDocument?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var preferredCompactColumn: NavigationSplitViewColumn = .content
 
     private var filteredDocuments: [OfficeDocument] {
         library.documents.filter { document in
@@ -17,7 +19,7 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             VStack(alignment: .leading, spacing: 24) {
                 HStack(spacing: 10) {
                     Image(systemName: "square.stack.3d.up.fill")
@@ -94,6 +96,7 @@ struct LibraryView: View {
                 .padding(24)
             }
             .background(OfficeTheme.subtle)
+            .accessibilityIdentifier("documentLibrary")
             .navigationTitle(LocalizedStringKey(section == .favorites ? "Favorites" : "Home"))
             .searchable(text: $search, prompt: "Search documents")
             .toolbar {
@@ -106,6 +109,12 @@ struct LibraryView: View {
         } detail: {
             if let document = library.selectedDocument {
                 DocumentDetailView(library: library, document: document).id(document.id)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button { showLibrary() } label: { Label("Home", systemImage: "house") }
+                                .accessibilityIdentifier("showLibrary")
+                        }
+                    }
             } else {
                 ContentUnavailableView("Select a document", systemImage: "doc.text.magnifyingglass",
                     description: Text("Your files stay on this iPad unless you share them."))
@@ -113,6 +122,11 @@ struct LibraryView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: library.selectedID, initial: true) { _, selectedID in
+            preferredCompactColumn = selectedID == nil ? .content : .detail
+            columnVisibility = selectedID == nil ? .all : .doubleColumn
+        }
+        .onChange(of: section) { _, _ in showLibrary() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             perform {
                 for url in try result.get() { library.selectedID = try library.importDocument(from: url).id }
@@ -134,6 +148,12 @@ struct LibraryView: View {
 
     private func create(markdown: Bool) {
         perform { library.selectedID = try library.create(markdown: markdown).id }
+    }
+
+    private func showLibrary() {
+        library.selectedID = nil
+        preferredCompactColumn = .content
+        columnVisibility = .all
     }
 
     private func createOffice(_ ext: String) {
