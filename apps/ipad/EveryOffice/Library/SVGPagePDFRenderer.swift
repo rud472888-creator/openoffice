@@ -155,9 +155,7 @@ final class SVGPagePDFRenderer: NSObject, WKNavigationDelegate {
             finish(.success(data))
             return
         }
-        let configuration = WKPDFConfiguration()
-        configuration.rect = CGRect(origin: .zero, size: activeSize)
-        webView.createPDF(configuration: configuration) { [weak self] result in self?.finish(result) }
+        PlatformWebKit.createPDF(in: webView, rect: CGRect(origin: .zero, size: activeSize)) { [weak self] result in self?.finish(result) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { finish(.failure(error)) }

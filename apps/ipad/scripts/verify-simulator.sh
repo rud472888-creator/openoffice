@@ -68,10 +68,28 @@ def escape(value):
     return str(value).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
 
 try:
+    result['phase'] = 'link-check'
+    products = Path('DerivedData/Build/Products/Debug-iphonesimulator')
+    app = products / 'EveryOffice.app'
+    binaries = [app / 'EveryOffice', app / 'EveryOffice.debug.dylib']
+    bundles = list(products.glob('*.xctest')) + list(products.glob('*.app/PlugIns/*.xctest'))
+    binaries.extend(bundle / bundle.stem for bundle in bundles)
+    linkage = []
+    strong_dependencies = []
+    for binary in sorted(set(path for path in binaries if path.is_file())):
+        linked = run(['xcrun', 'otool', '-l', str(binary.resolve())], 30)
+        commands = re.split(r'Load command \d+\n', linked.stdout)
+        matches = [command for command in commands if re.search(r'\bname\s+\S*libswiftWebKit\.dylib\b', command)]
+        linkage.append(str(binary) + ': ' + ('no libswiftWebKit dependency' if not matches else '\n' + '\n'.join(matches)))
+        if any(re.search(r'\bcmd LC_LOAD_DYLIB\b', command) for command in matches):
+            strong_dependencies.append(str(binary))
+    (directory / 'webkit-linkage.log').write_text('\n'.join(linkage) + '\n')
+    if strong_dependencies:
+        raise RuntimeError('Unexpected strong libswiftWebKit dependency remains in: ' + ', '.join(strong_dependencies))
+    result['phase'] = 'boot'
     run(['xcrun', 'simctl', 'boot', device], 30, allow_failure=True)
     run(['xcrun', 'simctl', 'bootstatus', device, '-b'], 120)
     result['phase'] = 'install'
-    app = Path('DerivedData/Build/Products/Debug-iphonesimulator/EveryOffice.app')
     if not app.is_dir():
         raise RuntimeError(f'Built application missing: {app}')
     run(['xcrun', 'simctl', 'install', device, str(app.resolve())], 120)

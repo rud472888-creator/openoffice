@@ -160,9 +160,9 @@ private final class EditorHarness: NSObject, WKScriptMessageHandler, WKNavigatio
     }
 
     func call(_ source: String, arguments: [String: Any] = [:]) {
-        webView.callAsyncJavaScript(source, arguments: arguments, in: nil, in: .page, completionHandler: { [weak self] result in
+        PlatformWebKit.evaluateAsync(in: webView, body: source, arguments: arguments) { [weak self] result in
             if case .failure(let error) = result { self?.fail(error.localizedDescription) }
-        })
+        }
     }
 
     func stop() {
@@ -189,13 +189,14 @@ private final class EditorHarness: NSObject, WKScriptMessageHandler, WKNavigatio
                 try data.write(to: output, options: .atomic)
                 savedData = try Data(contentsOf: output)
                 let revision = body["revision"] as? Int ?? 0
-                webView.callAsyncJavaScript("if (window.everyOffice.didSave) await window.everyOffice.didSave(revision); return true;",
-                    arguments: ["revision": revision], in: nil, in: .page, completionHandler: { [weak self] result in
+                PlatformWebKit.evaluateAsync(in: webView,
+                    body: "if (window.everyOffice.didSave) await window.everyOffice.didSave(revision); return true;",
+                    arguments: ["revision": revision]) { [weak self] result in
                     switch result {
                     case .success: self?.fulfillSaved()
                     case .failure(let error): self?.fail(error.localizedDescription)
                     }
-                })
+                }
             } catch { fail(error.localizedDescription) }
         case "error": fail(body["message"] as? String ?? "The editor reported an error")
         default: break

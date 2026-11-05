@@ -8,7 +8,7 @@ columns, system dark mode, and support for all 21 existing interface languages.
 This is a new iPad target. Desktop Electron APIs and desktop AI subprocesses are
 not included. It does not connect an account, AI service, or analytics service.
 
-## What works
+## Implemented paths
 
 - Native document library, Files import-copy, recent/favorite/search, tabs, rename, duplicate, share and guarded saving.
 - Rich DOCX editing with original document preservation, review tools, tables, pictures, headers/footers, page preview, PDF/print, ODT write-back and legacy DOC import-copy.
@@ -38,9 +38,13 @@ apps/ipad/scripts/verify-simulator.sh
 The first script type-checks, tests, and builds the six offline editor workspaces and
 their blank-document templates. Generated editor bundles are ignored by Git; run
 this script before opening the Xcode project. The second generates the Xcode project from
-`project.yml`, chooses an available iPad simulator, and runs the unit and UI
-tests with signing disabled. Its result bundle is
-`apps/ipad/build/EveryOffice.xcresult`.
+`project.yml`, chooses an available iPad simulator, builds all test targets,
+checks standalone app startup, then runs unit and UI tests with signing disabled.
+Evidence is saved under `apps/ipad/build`: `EveryOffice-build.xcresult`,
+`EveryOffice-unit.xcresult`, `EveryOffice.xcresult` (UI), `test-summary.json`,
+and `standalone-launch.json`. A failed earlier phase prevents later phases;
+unrun tests are not passing tests. Startup failures also retain app-only crash
+reports and bounded diagnostics.
 
 For interactive development:
 
