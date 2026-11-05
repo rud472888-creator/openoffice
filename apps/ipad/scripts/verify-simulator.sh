@@ -244,7 +244,14 @@ def failure_messages(value):
         message = value.get('failureText') or value.get('message')
         if message:
             name = value.get('testName') or value.get('testIdentifier') or value.get('testCaseName')
-            yield f'{scalar(name)}: {scalar(message)}' if name else scalar(message)
+            location = value.get('documentLocationInCreatingWorkspace') or value.get('sourceCodeContext')
+            if isinstance(location, dict):
+                nested = location.get('location')
+                location = location.get('url') or (nested.get('url') if isinstance(nested, dict) else None)
+            detail = f'{scalar(name)}: {scalar(message)}' if name else scalar(message)
+            if location:
+                detail += ' [' + scalar(location) + ']'
+            yield detail
         for child in value.values():
             yield from failure_messages(child)
     elif isinstance(value, list):
@@ -268,7 +275,8 @@ if status:
     # banners, and keep the annotation count small enough to inspect in the UI.
     concrete_pattern = re.compile(r'\berror:|assert|crash|timed out|test case .+failed', re.IGNORECASE)
     concrete = [line for line in log_failures if concrete_pattern.search(line)]
-    messages = structured_failures + concrete[-14:] + log_failures[-5:]
+    assertions = [line for line in concrete if re.search(r'XCTAssert|XCTUnwrap|\.swift:\d+: error:', line)]
+    messages = structured_failures + assertions[-10:] + concrete[-8:] + log_failures[-5:]
     unique = list(dict.fromkeys(message for message in messages if message.strip()))
     if not unique:
         unique = ['No structured error was available. Last build output:\n' + '\n'.join(log.splitlines()[-30:])]

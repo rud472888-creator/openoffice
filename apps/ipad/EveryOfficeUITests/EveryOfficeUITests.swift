@@ -49,7 +49,9 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(paragraph.waitForExistence(timeout: 30), failureContext("The bundled DOCX page must load through WKWebView.", app: app))
         paragraph.tap()
         paragraph.typeText("An office document saved on iPad.")
-        XCTAssertTrue(app.staticTexts["Saved on this iPad"].waitForExistence(timeout: 20))
+        assertEditorContains("An office document saved on iPad.", in: paragraph, app: app)
+        XCTAssertTrue(app.staticTexts["Saved on this iPad"].waitForExistence(timeout: 30),
+            failureContext("The edited DOCX must finish saving before relaunch.", app: app))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "DOCX editor on iPad"
         screenshot.lifetime = .keepAlways
@@ -61,8 +63,11 @@ final class EveryOfficeUITests: XCTestCase {
         let document = app.buttons["document-Untitled.docx"]
         XCTAssertTrue(reveal(document, in: app), failureContext("The saved DOCX must be visible after relaunch.", app: app))
         document.tap()
-        XCTAssertTrue(paragraph.waitForExistence(timeout: 30))
-        XCTAssertTrue((paragraph.value as? String)?.contains("An office document saved on iPad.") == true)
+        XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30),
+            failureContext("The saved DOCX must finish reopening before reading its content.", app: app))
+        XCTAssertTrue(paragraph.waitForExistence(timeout: 30),
+            failureContext("The reopened DOCX must expose its editable paragraph.", app: app))
+        assertEditorContains("An office document saved on iPad.", in: paragraph, app: app)
     }
 
     @MainActor
@@ -90,6 +95,16 @@ final class EveryOfficeUITests: XCTestCase {
     @MainActor
     private func failureContext(_ message: String, app: XCUIApplication) -> String {
         message + "\nAccessibility tree (first 6000 characters):\n" + String(app.debugDescription.prefix(6000))
+    }
+
+    @MainActor
+    private func assertEditorContains(_ expected: String, in editor: XCUIElement, app: XCUIApplication,
+                                      file: StaticString = #filePath, line: UInt = #line) {
+        let matches = NSPredicate { _, _ in (editor.value as? String)?.contains(expected) == true }
+        let complete = XCTNSPredicateExpectation(predicate: matches, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [complete], timeout: 15), .completed,
+            failureContext("The editor must contain the complete input. Actual value: \(String(describing: editor.value))", app: app),
+            file: file, line: line)
     }
 
     @MainActor

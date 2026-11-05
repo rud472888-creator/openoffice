@@ -79,7 +79,7 @@ navigation until its pending save completes or the user retries a failure.
 
 XCTest covers byte-preserving imports, duplicate filenames, restart persistence,
 favorite recovery, invalid text, import limits, save/delete guards, and unique
-note creation. Nine actual-bundle WebKit tests exercise format opening and saving.
+note creation. Ten actual-bundle WebKit tests exercise format opening and saving, including the desktop TXT newline policy. A separate native lifecycle test covers saves requested before document loading completes.
 XCUITest checks text notes, rich DOCX and HWP canvas input across app relaunch,
 plus file rename, duplication and tabs. Simulator screenshots and bridge diagnostics
 are attached to the result bundle.
