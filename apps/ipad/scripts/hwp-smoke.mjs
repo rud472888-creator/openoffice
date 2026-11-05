@@ -55,8 +55,9 @@ try {
     if (/^https?:/.test(request.url()) && !request.url().startsWith(address))
       remote.push(request.url())
   })
+  const failedAssets = []
   page.on('response', (response) => {
-    if (response.status() >= 400) console.error('HTTP', response.status(), response.url())
+    if (response.status() >= 400) failedAssets.push(`${response.status()} ${response.url()}`)
   })
   await page.addInitScript(() => {
     window.nativeMessages = []
@@ -206,6 +207,31 @@ try {
     await page.evaluate(() => window.nativeMessages.filter((message) => message.type === 'error')),
     [],
   )
+  const overlap = await page.evaluate(async () => {
+    const start = window.nativeMessages.length
+    const first = window.everyOffice.saveDocument()
+    const second = window.everyOffice.saveDocument()
+    // Let the first job enter its asynchronous export before the input event.
+    await new Promise((resolve) =>
+      queueMicrotask(() =>
+        queueMicrotask(() => {
+          const input = document
+            .querySelector('iframe')
+            .contentDocument.querySelector('textarea[aria-label]')
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+          resolve()
+        }),
+      ),
+    )
+    await Promise.all([first, second])
+    return window.nativeMessages.slice(start)
+  })
+  const overlapSaves = overlap.filter((message) => message.type === 'save')
+  const overlapChange = overlap.find((message) => message.type === 'changed')
+  assert.equal(overlapSaves.length, 2, 'Overlapping native save requests must both complete')
+  assert.ok(overlapChange, 'Input during an asynchronous save must remain tracked')
+  assert.ok(overlapSaves[0].revision < overlapChange.revision)
+  assert.equal(overlapSaves[1].revision, overlapChange.revision)
   await writeFile(
     new URL('hwp-result.json', output),
     JSON.stringify(
@@ -223,6 +249,7 @@ try {
           'PDF page bridge',
           'shared desktop document checks',
           'verified HWPX-to-HWP import copy',
+          'overlapping saves and input revision preservation',
         ],
       },
       null,
@@ -231,6 +258,7 @@ try {
   )
   assert.deepEqual(exceptions, [])
   assert.deepEqual(remote, [])
+  assert.deepEqual(failedAssets, [])
   console.log('PASS HWP studio open, original-byte save, offline assets')
 } finally {
   await browser.close()

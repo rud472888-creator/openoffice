@@ -23,6 +23,7 @@ The first build downloads the desktop studio's pinned commit and an OFL old-Hang
 - Changed HWP saves run the existing export/reload page-count verification and desktop tab-width, field-kind and section-tail repairs.
 - HWPX saves use the existing memo preservation check and ZIP expansion gate.
 - A password-protected or tracked-change document cannot be automatically rewritten in a way that removes protection/history. Known loss of master pages or memos fails the mobile save.
+- Saves and format-copy exports are serialized. Input during an export still advances the revision, so acknowledging an older snapshot cannot clear newer edits. The browser regression check covers overlapping saves and changes during export.
 - `notifySaved` runs only after native storage acknowledges the corresponding revision. Failed writes leave the draft dirty.
 - Node compression and SHA-1 record-identity operations are narrow browser adapters; their outputs are checked against Node. Existing desktop engine modules are imported unchanged.
 

@@ -54,11 +54,17 @@ let loading = false
 let memos: ReturnType<typeof mountMemos> | undefined
 let acknowledging: Promise<void> = Promise.resolve()
 let timer: ReturnType<typeof setTimeout> | undefined
+let saveJobs: Promise<void> = Promise.resolve()
+function serializeSave(job: () => Promise<void>): Promise<void> {
+  const next = saveJobs.then(job)
+  saveJobs = next.catch(() => {})
+  return next
+}
 const pending = new Map<number, Uint8Array>()
 const bridge = createAgentBridge(() => editor ?? null)
 
 function changed() {
-  if (loading || saving || !session) return
+  if (loading || !session) return
   revision++
   send({ type: 'changed', revision, draft: true })
   clearTimeout(timer)
@@ -88,29 +94,34 @@ async function print(mode: 'exportPDF' | 'printPages') {
 }
 
 async function exportCopy() {
-  await acknowledging
-  if (!session || !editor || saving) return
-  if (memos?.editing) throw new Error(text('memoSaveBlocked'))
-  if (session.tracked) throw new SaveRefused('saveTracked')
-  const port = savePort()
-  if (await port.isPasswordProtected()) throw new SaveRefused('saveProtected')
-  clearTimeout(timer)
-  saving = true
-  try {
-    const context = await editor.commands.context()
-    const snapshot = await session.save(port, revision !== acknowledged || context.isDirty === true)
-    await initializeHwpCore()
-    const format = session.format === 'hwp' ? 'hwpx' : 'hwp'
-    const bytes = await convertHwpSnapshot(snapshot, format)
-    send({
-      type: 'importCopy',
-      name: fileName.replace(/\.hwpx?$/i, `.${format}`),
-      kind: format,
-      base64: encode(bytes),
-    })
-  } finally {
-    saving = false
-  }
+  return serializeSave(async () => {
+    await acknowledging
+    if (!session || !editor) return
+    if (memos?.editing) throw new Error(text('memoSaveBlocked'))
+    if (session.tracked) throw new SaveRefused('saveTracked')
+    const port = savePort()
+    if (await port.isPasswordProtected()) throw new SaveRefused('saveProtected')
+    clearTimeout(timer)
+    saving = true
+    try {
+      const context = await editor.commands.context()
+      const snapshot = await session.save(
+        port,
+        revision !== acknowledged || context.isDirty === true,
+      )
+      await initializeHwpCore()
+      const format = session.format === 'hwp' ? 'hwpx' : 'hwp'
+      const bytes = await convertHwpSnapshot(snapshot, format)
+      send({
+        type: 'importCopy',
+        name: fileName.replace(/\.hwpx?$/i, `.${format}`),
+        kind: format,
+        base64: encode(bytes),
+      })
+    } finally {
+      saving = false
+    }
+  })
 }
 
 function mountToolbar() {
@@ -222,28 +233,30 @@ window.everyOffice = {
     }
   },
   async saveDocument() {
-    await acknowledging
-    if (!session || !editor || saving) return
-    if (memos?.editing) {
-      report(new Error(text('memoSaveBlocked')))
-      return
-    }
-    clearTimeout(timer)
-    saving = true
-    const savedRevision = revision
-    try {
-      const context = await editor.commands.context()
-      const bytes = await session.save(
-        savePort(),
-        savedRevision !== acknowledged || context.isDirty === true,
-      )
-      pending.set(savedRevision, bytes)
-      send({ type: 'save', revision: savedRevision, base64: encode(bytes) })
-    } catch (error) {
-      report(error)
-    } finally {
-      saving = false
-    }
+    return serializeSave(async () => {
+      await acknowledging
+      if (!session || !editor) return
+      if (memos?.editing) {
+        report(new Error(text('memoSaveBlocked')))
+        return
+      }
+      clearTimeout(timer)
+      saving = true
+      const savedRevision = revision
+      try {
+        const context = await editor.commands.context()
+        const bytes = await session.save(
+          savePort(),
+          savedRevision !== acknowledged || context.isDirty === true,
+        )
+        pending.set(savedRevision, bytes)
+        send({ type: 'save', revision: savedRevision, base64: encode(bytes) })
+      } catch (error) {
+        report(error)
+      } finally {
+        saving = false
+      }
+    })
   },
   async didSave(savedRevision) {
     const previous = acknowledging
