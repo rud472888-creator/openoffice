@@ -74,9 +74,10 @@ navigation until its pending save completes or the user retries a failure.
 
 XCTest covers byte-preserving imports, duplicate filenames, restart persistence,
 favorite recovery, invalid text, import limits, save/delete guards, and unique
-note creation. XCUITest creates and edits both a native text note and a DOCX in
-the bundled editor, relaunches the app, and verifies the saved content. The DOCX
-test also attaches a simulator screenshot to its result bundle.
+note creation. Nine actual-bundle WebKit tests exercise format opening and saving.
+XCUITest checks text notes, rich DOCX and HWP canvas input across app relaunch,
+plus file rename, duplication and tabs. Simulator screenshots and bridge diagnostics
+are attached to the result bundle.
 
 The initial implementation environment is Linux, so native compilation and iPad
 Simulator execution cannot be verified there. A successful web test run does

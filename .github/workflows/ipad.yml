@@ -55,7 +55,9 @@ jobs:
           name: ipad-simulator-results
           path: |
             apps/ipad/build/*.xcresult
-            apps/ipad/build/xcodebuild.log
+            apps/ipad/build/*.log
+            apps/ipad/build/diagnostics/**
             apps/ipad/build/test-summary.json
+            apps/ipad/build/standalone-launch.json
             apps/ipad/build/web-*.log
           if-no-files-found: ignore
