@@ -38,13 +38,14 @@ apps/ipad/scripts/verify-simulator.sh
 The first script type-checks, tests, and builds the six offline editor workspaces and
 their blank-document templates. Generated editor bundles are ignored by Git; run
 this script before opening the Xcode project. The second generates the Xcode project from
-`project.yml`, chooses an available iPad simulator, builds all test targets,
+`project.yml`, creates a disposable iPad simulator from an installed runtime, builds all test targets,
 checks standalone app startup, then runs unit and UI tests with signing disabled.
 Evidence is saved under `apps/ipad/build`: `EveryOffice-build.xcresult`,
 `EveryOffice-unit.xcresult`, `EveryOffice.xcresult` (UI), `test-summary.json`,
 and `standalone-launch.json`. A failed earlier phase prevents later phases;
 unrun tests are not passing tests. Startup failures also retain app-only crash
-reports and bounded diagnostics.
+reports and bounded diagnostics. The disposable simulator is removed when the
+script exits; existing developer devices are retained.
 
 For interactive development:
 

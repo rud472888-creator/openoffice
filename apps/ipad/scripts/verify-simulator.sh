@@ -8,14 +8,37 @@ for editor in DocumentEditor SpreadsheetEditor PresentationEditor HwpEditor Form
 done
 xcodegen generate
 simulator_id="$(xcrun simctl list devices available --json | python3 -c '
-import json, sys
+import json, subprocess, sys, uuid
 data = json.load(sys.stdin)
-devices = [d for runtime, group in data["devices"].items() if "iOS" in runtime for d in group if "iPad" in d["name"] and d.get("isAvailable")]
+devices = [(runtime, d) for runtime, group in data["devices"].items() if "iOS" in runtime for d in group if "iPad" in d["name"] and d.get("isAvailable")]
 if not devices:
     raise SystemExit("No available iPad simulator. Install an iOS simulator runtime in Xcode.")
-devices.sort(key=lambda d: (d["state"] != "Booted", "Pro" not in d["name"], d["name"]))
-print(devices[0]["udid"])
+devices.sort(key=lambda item: (item[1]["state"] != "Booted", "Pro" not in item[1]["name"], item[1]["name"]))
+runtime, template = devices[0]
+try:
+    created = subprocess.check_output(["xcrun", "simctl", "create", "Every Office Validation",
+        template["deviceTypeIdentifier"], runtime], text=True, timeout=60).strip()
+    uuid.UUID(created)
+except Exception as error:
+    print("::error title=iPad Simulator creation failed::" + str(error).replace("\n", "%0A"), file=sys.stderr)
+    raise
+print("::notice title=iPad Simulator device::Created a disposable device for " + runtime, file=sys.stderr)
+print(created)
 ')"
+# Only dispose of the new device created above, never an existing developer device.
+cleanup_simulator() {
+  python3 - "$simulator_id" <<'PY_CLEANUP'
+import subprocess
+import sys
+for operation in ['shutdown', 'delete']:
+    try:
+        subprocess.run(['xcrun', 'simctl', operation, sys.argv[1]],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+    except subprocess.TimeoutExpired:
+        pass
+PY_CLEANUP
+}
+trap cleanup_simulator EXIT
 mkdir -p build
 : > build/xcodebuild.log
 build_status=0
@@ -96,7 +119,7 @@ try:
         raise RuntimeError('Unexpected strong libswiftWebKit dependency remains in: ' + ', '.join(strong_dependencies))
     result['phase'] = 'boot'
     run(['xcrun', 'simctl', 'boot', device], 30, allow_failure=True)
-    run(['xcrun', 'simctl', 'bootstatus', device, '-b'], 120)
+    run(['xcrun', 'simctl', 'bootstatus', device, '-b'], 300)
     result['phase'] = 'install'
     if not app.is_dir():
         raise RuntimeError(f'Built application missing: {app}')
@@ -122,7 +145,9 @@ try:
     print('::notice title=Standalone iPad app launch passed::The application stayed alive for 3 seconds without XCTest injection.')
 except Exception as error:
     result['error'] = str(error)
-    print(f'::error title=Standalone iPad app startup failed::{escape(error)}')
+    print(f'::error title=iPad Simulator preflight failed::{escape(error)}')
+    if log.exists():
+        print('::error title=iPad Simulator preflight log::' + escape(log.read_text(errors='replace')[-4000:]))
 finally:
     (directory / 'standalone-launch.json').write_text(json.dumps(result, indent=2) + '\n')
     # XCTest must launch a fresh app process with its own test configuration.
