@@ -2,6 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 mkdir -p apps/ipad/build
+# The diagram editor is a verified build input, not a pre-existing local output.
+node vendor/drawio/prepare.mjs
 for editor in ipad-web ipad-sheets ipad-slides ipad-hwp ipad-formats ipad-markdown; do
   set +e
   (
