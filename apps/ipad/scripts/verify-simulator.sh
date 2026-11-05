@@ -57,7 +57,15 @@ result = {'status': 'failed', 'phase': 'boot'}
 log = directory / 'standalone-launch.log'
 
 def run(arguments, timeout, allow_failure=False):
-    completed = subprocess.run(arguments, text=True, capture_output=True, timeout=timeout)
+    try:
+        completed = subprocess.run(arguments, text=True, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        with log.open('a') as stream:
+            stream.write('$ ' + ' '.join(arguments) + f'\nTimed out after {timeout} seconds.\n')
+            for partial in [error.stdout, error.stderr]:
+                if partial:
+                    stream.write(partial.decode(errors='replace') if isinstance(partial, bytes) else partial)
+        raise
     with log.open('a') as stream:
         stream.write('$ ' + ' '.join(arguments) + '\n' + completed.stdout + completed.stderr + '\n')
     if completed.returncode and not allow_failure:
@@ -97,7 +105,7 @@ try:
     launch = run(['xcrun', 'simctl', 'launch', '--terminate-running-process',
                   '--stdout=' + str((directory / 'standalone.stdout.log').resolve()),
                   '--stderr=' + str((directory / 'standalone.stderr.log').resolve()),
-                  device, 'app.everyoffice.ipad'], 30)
+                  device, 'app.everyoffice.ipad'], 120)
     match = re.search(r'app\.everyoffice\.ipad:\s*(\d+)', launch.stdout)
     if not match:
         raise RuntimeError('simctl launch did not return an application PID')
