@@ -4,7 +4,10 @@ import { seededStudioSettings } from '../../hwp/src/renderer/studio-settings'
 import type { SaveEditorPort } from '../../hwp/src/renderer/save-flow'
 import { HwpSession, SaveRefused } from './session'
 import { mountMemos } from './memos'
+import { initializeHwpCore } from './browser-memos'
+import { convertHwpSnapshot } from './convert'
 import { gatherPrintJob } from '../../hwp/src/renderer/print-flow'
+import { closeDocumentCheck, toggleDocumentCheck } from './document-check'
 import './style.css'
 
 type Payload = { name: string; base64: string; kind: string; language?: string; locale?: string }
@@ -84,6 +87,32 @@ async function print(mode: 'exportPDF' | 'printPages') {
   }
 }
 
+async function exportCopy() {
+  await acknowledging
+  if (!session || !editor || saving) return
+  if (memos?.editing) throw new Error(text('memoSaveBlocked'))
+  if (session.tracked) throw new SaveRefused('saveTracked')
+  const port = savePort()
+  if (await port.isPasswordProtected()) throw new SaveRefused('saveProtected')
+  clearTimeout(timer)
+  saving = true
+  try {
+    const context = await editor.commands.context()
+    const snapshot = await session.save(port, revision !== acknowledged || context.isDirty === true)
+    await initializeHwpCore()
+    const format = session.format === 'hwp' ? 'hwpx' : 'hwp'
+    const bytes = await convertHwpSnapshot(snapshot, format)
+    send({
+      type: 'importCopy',
+      name: fileName.replace(/\.hwpx?$/i, `.${format}`),
+      kind: format,
+      base64: encode(bytes),
+    })
+  } finally {
+    saving = false
+  }
+}
+
 function mountToolbar() {
   document.querySelector('#host-tools')?.remove()
   const toolbar = document.createElement('nav')
@@ -91,6 +120,7 @@ function mountToolbar() {
   for (const [key, action] of [
     ['fileSave', () => window.everyOffice.saveDocument()],
     ['memoOpen', () => memos?.toggle()],
+    ['checkTitle', () => session && toggleDocumentCheck(bridge, session.format, locale)],
     ['fileExportPdf', () => print('exportPDF')],
     ['filePrint', () => print('printPages')],
   ] as const) {
@@ -102,6 +132,11 @@ function mountToolbar() {
     })
     toolbar.append(button)
   }
+  const convert = document.createElement('button')
+  convert.textContent = `${text('fileSaveAs')} (${session?.format === 'hwp' ? 'HWPX' : 'HWP'})`
+  convert.dataset.action = 'convert-copy'
+  convert.addEventListener('click', () => void exportCopy().catch(report))
+  toolbar.append(convert)
   document.body.prepend(toolbar)
 }
 
@@ -140,6 +175,7 @@ window.everyOffice = {
       const bytes = Uint8Array.from(atob(payload.base64), (char) => char.charCodeAt(0))
       session = await HwpSession.open(bytes, payload.kind)
       localStorage.setItem('rhwp-settings', seededStudioSettings(null, 'system'))
+      closeDocumentCheck()
       memos?.destroy()
       editor?.destroy()
       const studioUrl = new URL(

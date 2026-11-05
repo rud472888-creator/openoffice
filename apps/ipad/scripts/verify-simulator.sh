@@ -19,7 +19,9 @@ print(devices[0]["udid"])
 mkdir -p build
 set +e
 xcodebuild test -project EveryOffice.xcodeproj -scheme EveryOffice \
-  -destination "platform=iOS Simulator,id=$simulator_id" \
+  -destination "platform=iOS Simulator,id=$simulator_id" -destination-timeout 120 \
+  -parallel-testing-enabled NO -test-timeouts-enabled YES \
+  -default-test-execution-time-allowance 180 -maximum-test-execution-time-allowance 240 \
   -derivedDataPath DerivedData -resultBundlePath build/EveryOffice.xcresult \
   CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/xcodebuild.log
 pipeline_status=("${PIPESTATUS[@]}")

@@ -26,3 +26,6 @@ apps/ipad/EveryOffice/Resources/Notices/NOTICE -whitespace
 apps/ipad-sheets/vendor/ironcalc-xlsx/** -text -whitespace
 apps/ipad/licenses/*.txt -text -whitespace
 apps/ipad/EveryOffice/Resources/Notices/NOTICE -text
+
+apps/ipad-sheets/vendor/legacy-import/THIRD-PARTY-NOTICES.txt -text -whitespace
+apps/ipad-sheets/tests/fixtures/LICENSE-calamine.txt -text -whitespace

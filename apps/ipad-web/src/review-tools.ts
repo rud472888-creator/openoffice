@@ -25,7 +25,7 @@ import {
 import { hfFromPart } from '../../docs/src/renderer/doc-state'
 import type { EditorOptions } from './rich-editor'
 
-function modal(title: string): {
+export function modal(title: string): {
   dialog: HTMLDialogElement
   body: HTMLElement
   actions: HTMLElement
@@ -51,7 +51,12 @@ function modal(title: string): {
   return { dialog, body, actions, close: () => dialog.close() }
 }
 
-function field(parent: HTMLElement, label: string, value: string, type = 'text'): HTMLInputElement {
+export function field(
+  parent: HTMLElement,
+  label: string,
+  value: string,
+  type = 'text',
+): HTMLInputElement {
   const row = document.createElement('label')
   row.className = 'ipad-field'
   row.append(document.createTextNode(label))
@@ -63,7 +68,7 @@ function field(parent: HTMLElement, label: string, value: string, type = 'text')
   return input
 }
 
-function commitButton(parent: HTMLElement, action: () => void): void {
+export function commitButton(parent: HTMLElement, action: () => void): void {
   const button = document.createElement('button')
   button.type = 'button'
   button.textContent = t('appOk')

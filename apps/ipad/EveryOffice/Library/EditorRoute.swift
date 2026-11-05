@@ -7,7 +7,14 @@ enum EditorRoute: Equatable {
     case preview
 
     static func route(for document: OfficeDocument) -> EditorRoute {
-        route(forExtension: document.url.pathExtension)
+        route(forFilename: document.filename)
+    }
+
+    static func route(forFilename filename: String) -> EditorRoute {
+        let name = filename.lowercased()
+        let ext = URL(fileURLWithPath: filename).pathExtension.lowercased()
+        if name.hasSuffix(".drawio.svg") || name.hasSuffix(".drawio.png") { return .web(resource: "FormatsEditor", kind: ext) }
+        return route(forExtension: ext)
     }
 
     static func route(forExtension fileExtension: String) -> EditorRoute {
@@ -15,7 +22,7 @@ enum EditorRoute: Equatable {
         switch ext {
         case "md", "markdown", "txt", "text", "json": return .web(resource: "MarkdownEditor", kind: ext)
         case "doc", "docx", "odt": return .web(resource: "DocumentEditor", kind: ext)
-        case "xlsx": return .web(resource: "SpreadsheetEditor", kind: ext)
+        case "xlsx", "csv", "tsv", "xls", "ods": return .web(resource: "SpreadsheetEditor", kind: ext)
         case "pptx": return .web(resource: "PresentationEditor", kind: ext)
         case "hwp", "hwpx": return .web(resource: "HwpEditor", kind: ext)
         case "html", "htm", "xmind", "epub", "drawio", "dio": return .web(resource: "FormatsEditor", kind: ext)

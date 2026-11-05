@@ -173,6 +173,25 @@ try {
   } finally {
     hwpxDocument.free()
   }
+  await page.getByRole('button', { name: '문서 점검', exact: true }).click()
+  await page.locator('.doc-check-source').waitFor()
+  assert.equal(await page.locator('.doc-check-failed').count(), 0)
+  await page.locator('.doc-check-close').click()
+  await page.locator('[data-action="convert-copy"]').click()
+  await page.waitForFunction(() =>
+    window.nativeMessages.some((message) => message.type === 'importCopy'),
+  )
+  const converted = await page.evaluate(() =>
+    window.nativeMessages.filter((message) => message.type === 'importCopy').at(-1),
+  )
+  assert.equal(converted.kind, 'hwp')
+  const convertedDocument = new HwpDocument(Buffer.from(converted.base64, 'base64'))
+  try {
+    assert.ok(convertedDocument.getTextFileText().includes('HWPX 본문 추가'))
+    assert.ok(convertedDocument.getMemoList().includes('보존할 한글 메모'))
+  } finally {
+    convertedDocument.free()
+  }
   await page.getByRole('button', { name: /PDF/ }).click()
   await page.waitForFunction(() =>
     window.nativeMessages.some((message) => message.type === 'exportPDF'),
@@ -202,6 +221,8 @@ try {
           'memo create and preservation',
           'HWPX edit and save',
           'PDF page bridge',
+          'shared desktop document checks',
+          'verified HWPX-to-HWP import copy',
         ],
       },
       null,

@@ -53,6 +53,7 @@ export class RichWordDocument {
   readonly options: SaveOptions = {}
   previewPageCount?: number
   readonly sectionChanges = new Map<number, SectionSettings>()
+  private temporarilyUnlocked = new Set<number>()
   private locked = new Map<number, string>()
   private baseline: string
 
@@ -85,10 +86,11 @@ export class RichWordDocument {
         /<w:fldChar\b[^>]*w:fldCharType\s*=\s*["'](begin|end)["'][^>]*>/g,
       ))
         fieldDepth = match[1] === 'begin' ? fieldDepth + 1 : Math.max(0, fieldDepth - 1)
+      if (block.type === 'image') continue
       if (
         insideField ||
         block.sdtShell ||
-        !['paragraph', 'heading', 'listItem', 'table'].includes(block.type) ||
+        !['paragraph', 'heading', 'listItem', 'table', 'image'].includes(block.type) ||
         /<(?:w:(?:fldChar|fldSimple|instrText|delInstrText|sdt|drawing|pict|object|txbxContent|ruby|altChunk)|m:[\w]+)(?=[\s/>])/.test(
           xml,
         ) ||
@@ -136,7 +138,26 @@ export class RichWordDocument {
       if (current.has(index)) return false
       current.set(index, signature(node))
     }
-    return [...this.locked].every(([index, original]) => current.get(index) === original)
+    return [...this.locked].every(
+      ([index, original]) => this.temporarilyUnlocked.has(index) || current.get(index) === original,
+    )
+  }
+
+  /** A dedicated field operation may replace only its explicitly selected originals. */
+  replaceProtectedBlocks(indexes: number[], action: () => boolean, current: () => PmNode): boolean {
+    this.temporarilyUnlocked = new Set(indexes)
+    try {
+      const changed = action()
+      const retained = new Set((current().content ?? []).map((node) => node.attrs?.docxIndex))
+      for (const index of indexes)
+        if (!retained.has(index)) {
+          this.locked.delete(index)
+          this.lockedIndexes.delete(index)
+        }
+      return changed
+    } finally {
+      this.temporarilyUnlocked.clear()
+    }
   }
 
   isDirty(doc: PmNode): boolean {

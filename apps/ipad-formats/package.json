@@ -8,7 +8,8 @@
     "build": "vite build && node scripts/bundle.mjs && node --import tsx scripts/templates.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:browser": "node scripts/browser-smoke.mjs"
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "prebuild": "node ../../vendor/drawio/prepare.mjs"
   },
   "dependencies": {
     "@genoffice/epub-engine": "*",
@@ -16,6 +17,8 @@
     "@genoffice/i18n": "*",
     "@genoffice/zip-gate": "*",
     "mind-elixir": "5.15.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "@genoffice/drawio-model": "*",
+    "pako": "^2.1.0"
   }
 }

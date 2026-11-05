@@ -1,3 +1,13 @@
+import { readingState } from './reading-state'
+import { label, bookLabel } from './labels'
+import { buildTextIndex, rangeOf, searchBook } from '../../epub/src/renderer/reader/book-search'
+import { applyViewCss, showHit, topBlockId } from '../../epub/src/renderer/reader/frame-dom'
+import {
+  frameColors,
+  viewPrefsCss,
+  stepFontScale,
+  LINE_HEIGHTS,
+} from '../../epub/src/renderer/reader/view-prefs'
 import { paginateHtml, printActions, type PrintPage } from './export'
 import {
   openEpub,
@@ -191,7 +201,14 @@ const CSP =
 
 export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<EditorView> {
   const model = await BrowserBook.open(bytes)
-  let index = 0
+  const state = readingState(host.readingState, model.book.spine.items.length)
+  const prefs = state.viewPrefs
+  let position = state.position
+  let index = position?.spineIndex ?? 0
+  let frameReady = false
+  let readingTimer: ReturnType<typeof setTimeout> | undefined
+  let searching = 0
+  let lastState = ''
   let disposed = false
   let loading = 0
   let draft = false
@@ -219,17 +236,44 @@ export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<Edi
       : 'Click the text to edit. Original book styles and illustrations are retained.',
   )
   notice.className = 'notice'
+  const remember = () => {
+    if (frameReady && frame.contentDocument)
+      position = { spineIndex: index, blockId: topBlockId(frame.contentDocument) }
+    const serialized = JSON.stringify({ position, viewPrefs: prefs })
+    if (serialized !== lastState) {
+      lastState = serialized
+      host.updateReadingState({ position, viewPrefs: { ...prefs } })
+    }
+  }
+  const updateView = () => {
+    if (
+      frame.contentDocument &&
+      !model.book.fixedLayout &&
+      !model.book.spine.items[index]?.fixedLayout
+    )
+      applyViewCss(frame.contentDocument, viewPrefsCss(prefs, frameColors()))
+    remember()
+  }
   const resolvedAssets = new Map<string, string>()
-  const chapterHtml = (chapter: {
-    source: string
-    path: string
-    blocks: readonly { id: string; tag: string; outer: { start: number } }[]
-  }) => {
+  const chapterHtml = (
+    chapter: {
+      source: string
+      path: string
+      blocks: readonly { id: string; tag: string; outer: { start: number } }[]
+    },
+    reading = true,
+  ) => {
     // Rendering after each edit is synchronous; all referenced assets were resolved on chapter open.
     let html = buildChapterHtml({
       ...chapter,
       broken: false,
       baseUrl: `epub-asset://book/${chapter.path}`,
+      viewCss:
+        reading &&
+        !model.book.fixedLayout &&
+        !model.book.spine.items.some((item) => item.path === chapter.path && item.fixedLayout)
+          ? viewPrefsCss(prefs, frameColors())
+          : '',
     })
     html = html
       .replace(
@@ -364,19 +408,34 @@ export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<Edi
       }
     }
   }
-  async function show(next: number, blockId: string | null = null): Promise<void> {
+  async function show(
+    next: number,
+    blockId: string | null = null,
+    hit?: { start: number; length: number },
+  ): Promise<void> {
+    remember()
     const request = ++loading
     await controller.flush()
     const chapter = await model.readChapter(next)
     if (!chapter.ok) throw new Error(chapter.message)
     await prepareAssets(chapter)
     if (disposed || request !== loading) return
+    frameReady = false
     index = next
     chapters.value = String(index)
     const html = chapterHtml({ ...chapter, blocks: chapter.broken ? [] : chapter.blocks })
     frame.onload = () => {
       if (disposed || request !== loading || !frame.contentDocument) return
       controller.attach(frame.contentDocument, chapter)
+      frameReady = true
+      frame.contentDocument.addEventListener(
+        'scroll',
+        () => {
+          clearTimeout(readingTimer)
+          readingTimer = setTimeout(remember, 200)
+        },
+        true,
+      )
       frame.contentDocument.addEventListener('click', (event) => {
         const anchor = (event.target as Element).closest?.('a[href]')
         if (!anchor) return
@@ -389,6 +448,16 @@ export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<Edi
       if (blockId)
         for (const node of frame.contentDocument.querySelectorAll('[data-epub-block]'))
           if (node.getAttribute('data-epub-block') === blockId) node.scrollIntoView()
+      if (hit) {
+        const range = rangeOf(
+          frame.contentDocument,
+          buildTextIndex(frame.contentDocument.body),
+          hit.start,
+          hit.length,
+        )
+        if (range) showHit(frame.contentDocument, range)
+      }
+      remember()
     }
     frame.srcdoc = html
   }
@@ -415,7 +484,7 @@ export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<Edi
       await prepareAssets(chapter)
       pages.push(
         ...(await paginateHtml(
-          chapterHtml({ ...chapter, blocks: chapter.broken ? [] : chapter.blocks }),
+          chapterHtml({ ...chapter, blocks: chapter.broken ? [] : chapter.blocks }, false),
           model.book.fixedLayout || item.fixedLayout,
         )),
       )
@@ -424,8 +493,138 @@ export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<Edi
     return pages
   })
   toolbar.append(button('Export PDF', exports.pdf, host), button('Print', exports.print, host))
-  host.root.append(toolbar, notice, frame)
-  await show(0)
+  const font = element('output')
+  font.setAttribute('aria-label', label('Text size', host.language))
+  const setFont = (dir: 1 | -1) => {
+    prefs.fontScale = stepFontScale(prefs.fontScale, dir)
+    font.textContent = `${Math.round(prefs.fontScale * 100)}%`
+    updateView()
+  }
+  font.textContent = `${Math.round(prefs.fontScale * 100)}%`
+  const spacing = element('select')
+  spacing.setAttribute('aria-label', label('Line spacing', host.language))
+  for (const value of LINE_HEIGHTS) {
+    const option = element(
+      'option',
+      value === null ? label("Book's own", host.language) : String(value),
+    )
+    option.value = String(value)
+    option.selected = value === prefs.lineHeight
+    spacing.append(option)
+  }
+  spacing.addEventListener('change', () => {
+    prefs.lineHeight = spacing.value === 'null' ? null : Number(spacing.value)
+    updateView()
+  })
+  const dark = button(
+    'Dark view',
+    () => {
+      prefs.dark = !prefs.dark
+      dark.setAttribute('aria-pressed', String(prefs.dark))
+      updateView()
+    },
+    host,
+  )
+  dark.setAttribute('aria-pressed', String(prefs.dark))
+  toolbar.append(
+    button('Smaller text', () => setFont(-1), host),
+    font,
+    button('Larger text', () => setFont(1), host),
+    spacing,
+    dark,
+  )
+  const findbar = element('div')
+  findbar.className = 'toolbar search-bar'
+  const query = element('input')
+  query.type = 'search'
+  query.maxLength = 2048
+  query.placeholder = label('Text to find in the book', host.language)
+  query.setAttribute('aria-label', label('Find in book', host.language))
+  const replacement = element('input')
+  replacement.maxLength = 65536
+  replacement.placeholder = label('Replace with', host.language)
+  replacement.setAttribute('aria-label', label('Replace with', host.language))
+  const results = element('div')
+  results.className = 'book-search-results'
+  results.setAttribute('aria-live', 'polite')
+  const status = element('p')
+  status.className = 'notice'
+  const runSearch = async () => {
+    const token = ++searching
+    await controller.flush()
+    const found = await searchBook({
+      query: query.value,
+      chapterCount: model.book.spine.items.length,
+      isCancelled: () => disposed || token !== searching,
+      chapterText: async (chapter) => {
+        try {
+          const read = await model.readChapter(chapter)
+          return read.ok
+            ? buildTextIndex(
+                new DOMParser().parseFromString(
+                  chapterHtml({ ...read, blocks: read.broken ? [] : read.blocks }),
+                  'text/html',
+                ).body,
+              ).text
+            : null
+        } catch {
+          return null
+        }
+      },
+    })
+    if (disposed || token !== searching) return
+    results.replaceChildren()
+    status.textContent = found.hits.length
+      ? bookLabel(found.truncated ? 'findTruncated' : 'findCount', host.language, {
+          count: found.hits.length,
+        })
+      : label('No matches', host.language)
+    for (const hit of found.hits) {
+      const title = chapters.options[hit.spineIndex]?.textContent ?? String(hit.spineIndex + 1)
+      results.append(
+        button(
+          `${title}: ${hit.before}【${hit.match}】${hit.after}`,
+          () => show(hit.spineIndex, null, hit),
+          host,
+        ),
+      )
+    }
+    if (found.unreadable.length)
+      status.textContent +=
+        ' · ' + bookLabel('findUnreadable', host.language, { count: found.unreadable.length })
+  }
+  query.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      void runSearch().catch(host.error)
+    }
+  })
+  findbar.append(
+    query,
+    button('Find', runSearch, host),
+    replacement,
+    button(
+      'Replace all',
+      async () => {
+        assertText(replacement.value)
+        const outcome = await controller.replaceAll(
+          query.value,
+          replacement.value,
+          model.book.spine.items.length,
+        )
+        if (!outcome) return
+        await runSearch()
+        status.textContent = [
+          bookLabel('editReplaceDone', host.language, { count: outcome.replaced }),
+          bookLabel('editReplaceSkipped', host.language, { count: outcome.skipped }),
+          bookLabel('editReplaceFailed', host.language, { count: outcome.failed }),
+        ].join(' · ')
+      },
+      host,
+    ),
+  )
+  host.root.append(toolbar, findbar, status, results, notice, frame)
+  await show(index, position?.blockId ?? null)
   return {
     save: async () => {
       if (controller.composing) throw new Error('Finish typing before saving.')
@@ -433,6 +632,9 @@ export async function epubView(bytes: Uint8Array, host: EditorHost): Promise<Edi
       return model.save()
     },
     dispose: () => {
+      remember()
+      clearTimeout(readingTimer)
+      searching++
       disposed = true
       loading++
       controller.detach()

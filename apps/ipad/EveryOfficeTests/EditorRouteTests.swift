@@ -14,8 +14,18 @@ final class EditorRouteTests: XCTestCase {
     func testNativeAndPreviewRoutesRemainAvailable() {
         XCTAssertEqual(EditorRoute.route(forExtension: "md"), .web(resource: "MarkdownEditor", kind: "md"))
         XCTAssertEqual(EditorRoute.route(forExtension: "txt"), .web(resource: "MarkdownEditor", kind: "txt"))
-        XCTAssertEqual(EditorRoute.route(forExtension: "csv"), .text)
+        XCTAssertEqual(EditorRoute.route(forExtension: "csv"), .web(resource: "SpreadsheetEditor", kind: "csv"))
+        XCTAssertEqual(EditorRoute.route(forExtension: "tsv"), .web(resource: "SpreadsheetEditor", kind: "tsv"))
+        XCTAssertEqual(EditorRoute.route(forExtension: "xls"), .web(resource: "SpreadsheetEditor", kind: "xls"))
+        XCTAssertEqual(EditorRoute.route(forExtension: "ods"), .web(resource: "SpreadsheetEditor", kind: "ods"))
         XCTAssertEqual(EditorRoute.route(forExtension: "PDF"), .pdf)
         XCTAssertEqual(EditorRoute.route(forExtension: "unknown"), .preview)
+    }
+
+    func testEmbeddedDrawioPicturesUseEditorWithoutCapturingOrdinaryImages() {
+        XCTAssertEqual(EditorRoute.route(forFilename: "Diagram.drawio.svg"), .web(resource: "FormatsEditor", kind: "svg"))
+        XCTAssertEqual(EditorRoute.route(forFilename: "Diagram.drawio.png"), .web(resource: "FormatsEditor", kind: "png"))
+        XCTAssertEqual(EditorRoute.route(forFilename: "Picture.png"), .preview)
+        XCTAssertEqual(EditorRoute.route(forFilename: "Vector.svg"), .preview)
     }
 }

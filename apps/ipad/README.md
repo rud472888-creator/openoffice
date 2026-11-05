@@ -12,9 +12,9 @@ not included. It does not connect an account, AI service, or analytics service.
 
 - Native document library, Files import-copy, recent/favorite/search, tabs, rename, duplicate, share and guarded saving.
 - Rich DOCX editing with original document preservation, review tools, tables, pictures, headers/footers, page preview, PDF/print, ODT write-back and legacy DOC import-copy.
-- Actual desktop Univer spreadsheet grid with matched IronCalc WASM formula recalculation and persisted result caches.
+- Actual desktop Univer spreadsheet grid with matched IronCalc WASM formula recalculation and persisted result caches. CSV/TSV/XLS/ODS imports create separate XLSX copies.
 - Graphical PPTX shape/text/table/image editing, touch transforms, slide arrangement, undo/redo, slideshow and PDF/print.
-- Full local HWP/HWPX studio, Korean text editing, formatting, tables/pictures, memo editing, verified saves and PDF/print.
+- Full local HWP/HWPX studio, Korean text editing, formatting, tables/pictures, memo editing, verified saves, document checks, HWP/HWPX conversion copies and PDF/print.
 - Graphical XMind, EPUB chapter editing, HTML source/live preview and the pinned offline draw.io application.
 - Desktop Markdown rich editor and TXT/JSON CodeMirror, formatting/tables/math/diagrams, source mode, search/replace, PDF/print and DOCX export.
 - Native PDF page operations, search, highlights, free-text notes, PencilKit ink and sharing/printing.

@@ -3,6 +3,7 @@ import '@univerjs/sheets/facade'
 import '@univerjs/sheets-ui/facade'
 import { saveDesktopWorkbook } from './desktop-save'
 import { FormulaEngine } from './calculation'
+import { importWorkbook } from './import-workbook'
 import { address } from './workbook'
 import { NativeActions, nativePrintPages } from './native-actions'
 import {
@@ -51,6 +52,7 @@ export class DesktopHost {
   private revision = 0
   private pending = 0
   private locale = 'en'
+  private importedSource?: { name: string; kind: string }
   private savingRevision?: number
   private opening?: Promise<void>
   private openResolvers = new Map<string, () => void>()
@@ -258,7 +260,15 @@ export class DesktopHost {
     post({ type: 'changed', dirty: true, draft, revision: this.revision })
   }
   private showIssues(workbook: DesktopWorkbook): void {
-    const issues = [...workbook.book.calculationIssues, ...workbook.unsupported]
+    const issues = [
+      ...(this.importedSource
+        ? [
+            `${this.importedSource.name} was imported as a spreadsheet. Saving creates a separate XLSX copy; the original file stays unchanged. Values, supported formulas and dates are imported; advanced legacy formatting and drawings remain in the original.`,
+          ]
+        : []),
+      ...workbook.book.calculationIssues,
+      ...workbook.unsupported,
+    ]
     let banner = document.querySelector<HTMLElement>('#ipad-compatibility')
     if (!banner) {
       banner = document.createElement('div')
@@ -325,16 +335,38 @@ export class DesktopHost {
       post({ type: 'error', message: error.message })
       for (const waiter of this.saveWaiters.splice(0)) waiter.reject(error)
     } else {
-      post({
-        type: 'save',
-        name: this.active.file.name,
-        kind: 'xlsx',
-        base64: base64(this.active.bytes),
-        revision: this.savingRevision ?? this.revision,
-      })
-      for (const waiter of this.saveWaiters.splice(0)) waiter.resolve()
+      void this.persist(this.active, this.savingRevision ?? this.revision)
     }
     this.savingRevision = undefined
+  }
+
+  private async persist(workbook: DesktopWorkbook, revision: number): Promise<void> {
+    try {
+      if (this.importedSource) {
+        const created = await this.nativeActions.request('importCopy', {
+          name: workbook.file.name,
+          kind: 'xlsx',
+          base64: base64(workbook.bytes),
+          revision,
+          conversionSave: true,
+        })
+        if (!created) {
+          if (this.revision > revision) return
+          throw new Error('The converted XLSX copy could not be saved.')
+        }
+      } else
+        post({
+          type: 'save',
+          name: workbook.file.name,
+          kind: 'xlsx',
+          base64: base64(workbook.bytes),
+          revision,
+        })
+      for (const waiter of this.saveWaiters.splice(0)) waiter.resolve()
+    } catch (error) {
+      post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
+      for (const waiter of this.saveWaiters.splice(0)) waiter.reject(error)
+    }
   }
 
   async open(document: {
@@ -344,15 +376,19 @@ export class DesktopHost {
     locale?: string
   }): Promise<void> {
     try {
-      if (document.kind !== 'xlsx') throw new Error('This editor opens XLSX documents only.')
       if (document.base64.length > Math.ceil((32 * 1024 * 1024) / 3) * 4)
         throw new Error('The workbook exceeds the 32 MB iPad limit.')
       this.locale = document.locale ?? 'en'
       const raw = atob(document.base64)
-      const selected = await DesktopWorkbook.open(
+      const imported = await importWorkbook(
         Uint8Array.from(raw, (c) => c.charCodeAt(0)),
         document.name,
+        document.kind,
       )
+      this.importedSource = imported.converted
+        ? { name: document.name, kind: imported.sourceKind }
+        : undefined
+      const selected = await DesktopWorkbook.open(imported.bytes, imported.name)
       this.sessions.set(selected.file.sessionId, selected)
       this.showIssues(selected)
       this.queued = selected
@@ -385,13 +421,7 @@ export class DesktopHost {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     )
     if (!this.pending && !this.editing()) {
-      post({
-        type: 'save',
-        name: this.active.file.name,
-        kind: 'xlsx',
-        base64: base64(this.active.bytes),
-        revision: this.revision,
-      })
+      await this.persist(this.active, this.revision)
       return
     }
     const promise = new Promise<void>((resolve, reject) =>

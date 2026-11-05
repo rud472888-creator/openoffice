@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 const local = (name: string) => fileURLToPath(new URL(`./src/${name}`, import.meta.url))
 export default defineConfig({
   base: './',
+  define: { 'process.env.NODE_ENV': JSON.stringify('production') },
   resolve: {
     alias: {
       'node:zlib': local('browser-zlib.ts'),

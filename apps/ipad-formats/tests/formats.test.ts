@@ -162,3 +162,101 @@ it('sanitizes native print fragments and enforces physical/page output bounds', 
     checkPages([{ width: 600, height: 800, html: 'x'.repeat(20 * 1024 * 1024 + 1) }]),
   ).toThrow()
 })
+
+it('opens real desktop embedded SVG/PNG diagrams without treating ordinary pictures as editable', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const { openDiagramFile } = await import('../src/diagram-file')
+  vi.stubGlobal('DOMParser', new JSDOM().window.DOMParser)
+  for (const extension of ['drawio', 'drawio.svg', 'drawio.png']) {
+    const bytes = new Uint8Array(
+      await readFile(
+        new URL(`../../../packages/drawio-model/tests/fixtures/out.${extension}`, import.meta.url),
+      ),
+    )
+    const opened = openDiagramFile(`Example.${extension}`, bytes)
+    expect(opened.format).toBe(extension)
+    expect(opened.xml).toContain('<mxfile')
+  }
+  expect(() =>
+    openDiagramFile(
+      'Empty.drawio.svg',
+      new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    ),
+  ).toThrow(/no draw.io/)
+  expect(() => openDiagramFile('Plain.png', new Uint8Array([1, 2]))).toThrow(/only/)
+})
+
+it('rejects compressed diagram bombs before the full vendor editor loads', async () => {
+  const { openDiagramFile } = await import('../src/diagram-file')
+  const { deflateRawSync } = await import('node:zlib')
+  vi.stubGlobal('DOMParser', new JSDOM().window.DOMParser)
+  const compressed = deflateRawSync(Buffer.from('x'.repeat(16 * 1024 * 1024 + 1))).toString(
+    'base64',
+  )
+  expect(() =>
+    openDiagramFile(
+      'Unsafe.drawio',
+      new TextEncoder().encode(`<mxfile><diagram>${compressed}</diagram></mxfile>`),
+    ),
+  ).toThrow(/16 MB/)
+})
+
+it('validates native persisted EPUB state without changing the book', async () => {
+  const { readingState } = await import('../src/reading-state')
+  expect(
+    readingState(
+      {
+        position: { spineIndex: 1, blockId: 'p1' },
+        viewPrefs: { fontScale: 1.5, lineHeight: 2, dark: true },
+      },
+      2,
+    ),
+  ).toEqual({
+    position: { spineIndex: 1, blockId: 'p1' },
+    viewPrefs: { fontScale: 1.5, lineHeight: 2, dark: true },
+  })
+  expect(
+    readingState(
+      {
+        position: { spineIndex: -1 },
+        viewPrefs: { fontScale: Infinity, lineHeight: 99, dark: 'true' },
+      },
+      2,
+    ),
+  ).toEqual({ position: null, viewPrefs: { fontScale: 1, lineHeight: 1.5, dark: false } })
+  expect(readingState(null, 0).position).toBeNull()
+  expect(
+    readingState({ position: { spineIndex: 0, blockId: 'x'.repeat(513) } }, 1).position?.blockId,
+  ).toBeNull()
+})
+
+it('whole-book search indexes rendered reading text and excludes scripts and ruby annotations', async () => {
+  const { searchBook, buildTextIndex, rangeOf } =
+    await import('../../epub/src/renderer/reader/book-search')
+  vi.stubGlobal('DOMParser', new JSDOM().window.DOMParser)
+  const docs = [
+    '<p>First needle</p><script>needle</script>',
+    '<p>Second <strong>Needle</strong><ruby>字<rt>needle</rt></ruby></p>',
+  ].map((text) => new DOMParser().parseFromString(text, 'text/html'))
+  const result = await searchBook({
+    query: 'needle',
+    chapterCount: docs.length,
+    chapterText: async (index) => buildTextIndex(docs[index]!.body).text,
+  })
+  expect(result.hits).toHaveLength(2)
+  expect(result.hits.map((hit) => hit.spineIndex)).toEqual([0, 1])
+  const hit = result.hits[1]!
+  expect(rangeOf(docs[1]!, buildTextIndex(docs[1]!.body), hit.start, hit.length)?.toString()).toBe(
+    'Needle',
+  )
+  expect(
+    (
+      await searchBook({
+        query: 'needle',
+        chapterCount: 2,
+        chapterText: async () => 'needle needle',
+        limit: 1,
+      })
+    ).truncated,
+  ).toBe(true)
+})

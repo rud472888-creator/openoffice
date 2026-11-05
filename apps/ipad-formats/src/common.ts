@@ -16,6 +16,8 @@ export interface EditorHost {
   root: HTMLElement
   language: string
   name: string
+  readingState?: unknown
+  updateReadingState(state: unknown): void
   exportFile(extension: string, bytes: Uint8Array): Promise<void>
   exportPages(type: 'exportPDF' | 'printPages', pages: PrintPage[]): Promise<void>
   changed(draft?: boolean): void

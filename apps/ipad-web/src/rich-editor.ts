@@ -22,6 +22,10 @@ import { insertPageBreak } from '../../docs/src/renderer/editor/page-break'
 import type { Lang } from '@genoffice/i18n'
 import { beginOdtSession, endOdtSession } from '../../docs/src/renderer/odt-gate'
 import { showPrintPreview, closePrintPreview } from './print-preview'
+import { installTouchTabs } from './touch-tabs'
+import { addPictureTools } from './picture-tools'
+import { addReferenceTools } from './reference-tools'
+import { addDesktopDialogs } from './desktop-dialogs'
 import { addReviewTools } from './review-tools'
 
 export interface EditorOptions {
@@ -156,6 +160,9 @@ export function mountRichEditor(options: EditorOptions): Editor {
   editor.storage.trackChanges.enabled = parsed.trackRevisions === true
   buildToolbar(editor, options)
   addReviewTools(editor, options)
+  addReferenceTools(editor, options)
+  addDesktopDialogs(editor, options)
+  addPictureTools(editor, options)
   for (const [key, action] of [
     ['ribbonPagePreview', undefined],
     ['appExportPdf', 'exportPDF'],
@@ -169,6 +176,7 @@ export function mountRichEditor(options: EditorOptions): Editor {
     })
     options.toolbar.append(button)
   }
+  installTouchTabs(options.toolbar)
   return editor
 }
 

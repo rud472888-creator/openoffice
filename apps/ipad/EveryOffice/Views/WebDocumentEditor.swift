@@ -116,10 +116,10 @@ private struct OfficeWebView: UIViewRepresentable {
             switch type {
             case "ready":
                 do {
-                    if document.kind.isTextEditable { _ = try library.readText(document) }
+                    if document.kind.isTextEditable, !["csv", "tsv", "xls", "ods"].contains(document.url.pathExtension.lowercased()) { _ = try library.readText(document) }
                     let data = try Data(contentsOf: document.url)
                     let locale = Self.editorLocale
-                    let payload: [String: String] = ["name": document.filename, "base64": data.base64EncodedString(), "kind": kind ?? document.url.pathExtension.lowercased(), "language": locale, "locale": locale]
+                    let payload: [String: Any] = ["name": document.filename, "base64": data.base64EncodedString(), "kind": kind ?? document.url.pathExtension.lowercased(), "language": locale, "locale": locale, "readingState": library.readingState(for: document)]
                     let json = try JSONSerialization.data(withJSONObject: payload)
                     guard let string = String(data: json, encoding: .utf8) else { throw LibraryError.invalidFile }
                     webView?.evaluateJavaScript("void window.everyOffice.openDocument(\(string))") { [weak self] _, error in
@@ -190,13 +190,38 @@ private struct OfficeWebView: UIViewRepresentable {
                     library.generatedPDF = presentation
                 } catch { acknowledgeExport(requestID, completed: false, error: error.localizedDescription); library.present(error) }
             case "importCopy":
+                let requestID = body["requestId"] as? String
                 do {
                     guard let base64 = body["base64"] as? String,
                           base64.utf8.count <= Int(DocumentLibrary.maximumImportBytes * 4 / 3 + 4),
                           let data = Data(base64Encoded: base64), let name = body["name"] as? String,
                           let kind = body["kind"] as? String else { throw LibraryError.invalidFile }
-                    library.selectedID = try library.importCopy(data: data, name: name, kind: kind).id
-                } catch { library.present(error) }
+                    let sourceExtension = document.url.pathExtension.lowercased()
+                    let conversionSave = body["conversionSave"] as? Bool ?? false
+                    let snapshot = body["revision"] as? Int
+                    if ["csv", "tsv", "xls", "ods"].contains(sourceExtension), conversionSave {
+                        guard let snapshot, snapshot >= 0, snapshot <= revision else { throw LibraryError.invalidFile }
+                        if snapshot < revision {
+                            saving = false
+                            acknowledgeExport(requestID, completed: false)
+                            requestSave()
+                            return
+                        }
+                    }
+                    let converted = try library.importCopy(data: data, name: name, kind: kind)
+                    if DocumentConversionPolicy.completesSource(sourceExtension: sourceExtension, destinationKind: kind,
+                        conversionSave: conversionSave, savedRevision: snapshot, currentRevision: revision) {
+                        dirty = false
+                        saving = false
+                        saveAgain = false
+                        library.savingDocumentIDs.remove(document.id)
+                        library.pendingSaveActions.removeValue(forKey: document.id)
+                    }
+                    acknowledgeExport(requestID, completed: true)
+                    library.selectedID = converted.id
+                } catch { acknowledgeExport(requestID, completed: false, error: error.localizedDescription); fail(error) }
+            case "readingState":
+                do { try library.saveReadingState(body, document: document) } catch { library.present(error) }
             default: break
             }
         }

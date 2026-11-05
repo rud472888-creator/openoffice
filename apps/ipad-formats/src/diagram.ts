@@ -1,3 +1,6 @@
+import { openDiagramFile } from './diagram-file'
+import { exportKindOf } from '../../diagram/src/shared/formats'
+import { dataUrlBytes } from '../../diagram/src/renderer/drawio/frame-client'
 import { printActions, singleHtmlPage, utf8, type PrintPage } from './export'
 import { parseBridgeMessage } from '../../diagram/src/shared/bridge-protocol'
 import { assertText, button, element, type EditorHost, type EditorView } from './common'
@@ -6,18 +9,7 @@ import { assertText, button, element, type EditorHost, type EditorView } from '.
 export async function diagramView(bytes: Uint8Array, host: EditorHost): Promise<EditorView> {
   if (!/^https?:$/.test(location.protocol))
     throw new Error('Diagram editing requires the app’s local document host.')
-  const xml = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  assertText(xml)
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('Unsupported diagram XML.')
-  const parsed = new DOMParser().parseFromString(xml, 'application/xml')
-  if (
-    parsed.querySelector('parsererror') ||
-    !['mxfile', 'mxGraphModel'].includes(parsed.documentElement.localName)
-  )
-    throw new Error('This is not a draw.io diagram.')
-  const compressed = [...parsed.querySelectorAll('diagram')].some(
-    (node) => !node.querySelector('mxGraphModel') && !!node.textContent?.trim(),
-  )
+  const { xml, format, compressed } = openDiagramFile(host.name, bytes)
   const frame = element('iframe')
   frame.title = 'Diagram editor'
   frame.className = 'diagram-frame'
@@ -184,22 +176,45 @@ export async function diagramView(bytes: Uint8Array, host: EditorHost): Promise<
     clearTimeout(loadTimer)
     throw error
   }
+  let exportQueue: Promise<unknown> = Promise.resolve()
+  const serialize = async (): Promise<Uint8Array> => {
+    const id = `export-${++next}`
+    const fileKind = exportKindOf(format)
+    const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        exports.delete(id)
+        reject(new Error('Diagram export timed out.'))
+      }, 30000)
+      exports.set(id, { resolve, reject, timer })
+      send(
+        JSON.stringify({
+          action: 'export',
+          format: fileKind,
+          ieumId: id,
+          ...(fileKind === 'xmlsvg' ? { asText: true, theme: 'auto' } : {}),
+        }),
+      )
+    })
+    let output: Uint8Array
+    if (fileKind === 'xmlpng')
+      output = dataUrlBytes(typeof result.data === 'string' ? result.data : '')
+    else {
+      const text = fileKind === 'xml' ? result.xml : result.data
+      if (typeof text !== 'string' || !text.trim())
+        throw new Error('The diagram editor returned no document.')
+      assertText(text)
+      output = new TextEncoder().encode(text)
+    }
+    // Validate the exact format before its bytes reach the native save handler.
+    openDiagramFile(host.name, output)
+    return output
+  }
   return {
     async save() {
       if (!dirty) return bytes
-      const id = `export-${++next}`
-      const result = await new Promise<Record<string, unknown>>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          exports.delete(id)
-          reject(new Error('Diagram export timed out.'))
-        }, 30000)
-        exports.set(id, { resolve, reject, timer })
-        send(JSON.stringify({ action: 'export', format: 'xml', ieumId: id }))
-      })
-      if (typeof result.xml !== 'string' || !result.xml.trim())
-        throw new Error('The diagram editor returned no XML.')
-      assertText(result.xml)
-      return new TextEncoder().encode(result.xml)
+      const saving = exportQueue.then(serialize, serialize)
+      exportQueue = saving.catch(() => undefined)
+      return saving
     },
     dispose() {
       disposed = true

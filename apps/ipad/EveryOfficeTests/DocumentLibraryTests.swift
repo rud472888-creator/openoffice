@@ -198,4 +198,20 @@ final class DocumentLibraryTests: XCTestCase {
         XCTAssertThrowsError(try library.importCopy(data: Data(), name: "wrong.txt", kind: "docx"))
         XCTAssertThrowsError(try library.importCopy(data: Data(), name: "run.exe", kind: "exe"))
     }
+
+    @MainActor
+    func testReadingPositionPersistsPerDocumentAndViewPreferencesAreGlobal() throws {
+        let library = makeLibrary()
+        let first = try library.create(markdown: false)
+        let second = try library.create(markdown: true)
+        let original = try Data(contentsOf: first.url)
+        try library.saveReadingState(["position": ["spineIndex": 2, "blockId": "chapter-two"], "viewPrefs": ["fontScale": 1.2, "lineHeight": 1.6, "dark": true]], document: first)
+        let restored = makeLibrary()
+        XCTAssertEqual((restored.readingState(for: first)["position"] as? [String: Any])?["spineIndex"] as? Int, 2)
+        XCTAssertNil(restored.readingState(for: second)["position"])
+        XCTAssertEqual((restored.readingState(for: second)["viewPrefs"] as? [String: Any])?["fontScale"] as? Double, 1.2)
+        XCTAssertEqual(try Data(contentsOf: first.url), original)
+        XCTAssertThrowsError(try library.saveReadingState(["position": ["spineIndex": -1]], document: first))
+        XCTAssertThrowsError(try library.saveReadingState(["viewPrefs": ["fontScale": 9.0, "lineHeight": 1.6, "dark": false]], document: first))
+    }
 }

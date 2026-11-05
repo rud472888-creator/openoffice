@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# The shared desktop spreadsheet graph exceeds Node's small-runner default heap.
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 cd "$(dirname "$0")/../../.."
 mkdir -p apps/ipad/build
 # The diagram editor is a verified build input, not a pre-existing local output.

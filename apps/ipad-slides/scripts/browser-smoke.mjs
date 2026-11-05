@@ -174,6 +174,39 @@ try {
   const zip = await JSZip.loadAsync(Buffer.from(saved.base64, 'base64'))
   assert.match(await zip.file('ppt/presentation.xml').async('string'), /id="257"/)
   assert.match(await zip.file('ppt/slides/slide2.xml').async('string'), /A new editable slide/)
+  await page.locator('.feature-panel > summary').filter({ hasText: 'Review' }).click()
+  await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Tablet speaker notes 한글')
+  await page.evaluate(() => window.everyOffice.saveDocument())
+  let featureSave = await page.evaluate(() =>
+    window.nativeMessages.filter((message) => message.type === 'save').at(-1),
+  )
+  let featureZip = await JSZip.loadAsync(Buffer.from(featureSave.base64, 'base64'))
+  assert.match(
+    await featureZip.file('ppt/notesSlides/notesSlide1.xml').async('string'),
+    /Tablet speaker notes 한글/,
+  )
+  await page.getByRole('textbox', { name: 'Author', exact: true }).fill('Tablet reviewer')
+  await page.locator('.feature-panel textarea[placeholder]').fill('Local document comment')
+  await page.getByRole('button', { name: 'Post', exact: true }).click()
+  await page.locator('.feature-panel label').filter({ hasText: 'Tablet reviewer' }).waitFor()
+  await page.getByRole('button', { name: 'Animations', exact: true }).click()
+  await page.getByRole('combobox', { name: 'Insert', exact: true }).selectOption('chart-bar')
+  await page.locator('.slide-canvas [data-element="1"]').waitFor()
+  const chartPanel = page.locator('details.feature-panel').filter({ hasText: 'Edit Chart Data' })
+  await chartPanel.locator('summary').click()
+  await chartPanel.locator('input[type="number"]').first().fill('25')
+  await chartPanel.getByRole('button', { name: 'Apply', exact: true }).click()
+  await page.evaluate(() => window.everyOffice.saveDocument())
+  featureSave = await page.evaluate(() =>
+    window.nativeMessages.filter((message) => message.type === 'save').at(-1),
+  )
+  featureZip = await JSZip.loadAsync(Buffer.from(featureSave.base64, 'base64'))
+  assert.match(
+    await featureZip.file('ppt/charts/chart_ipad2.xml').async('string'),
+    /<c:v>25<\/c:v>/,
+  )
+  assert.match(await featureZip.file('ppt/slides/slide2.xml').async('string'), /<p:timing>/)
+  saved = featureSave
   await page.evaluate(() => window.everyOffice.exportPDF())
   const exported = await page.evaluate(() =>
     window.nativeMessages.filter((message) => message.type === 'exportPDF').at(-1),

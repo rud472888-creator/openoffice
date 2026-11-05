@@ -14,7 +14,10 @@ import { readSourceText } from '../../markdown/src/shared/source-text'
 import { tiptapFindTarget } from '../../markdown/src/renderer/editor/findTarget'
 import { ToastHost } from '../../markdown/src/renderer/components/toast'
 import { NoteDocument } from './document'
+import { insertFootnote } from '../../markdown/src/renderer/editor/footnote'
+import { openMathCreate } from '../../markdown/src/renderer/editor/mathEdit'
 import { buildPrintHtml } from '../../markdown/src/renderer/export/printHtml'
+import { diagramSvgToPng, renderDiagram } from '../../markdown/src/renderer/editor/diagrams'
 import { exportDocxBytes } from '../../markdown/src/renderer/export/docxExport'
 import { decodeImageDataUrl, toDocxImage } from '../../markdown/src/renderer/export/exportImage'
 import { frontmatterInner, buildFrontmatterRaw } from '../../markdown/src/renderer/markdown/docText'
@@ -79,7 +82,7 @@ function NoteEditor({ payload, opened }: { payload: Payload; opened(): void }) {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [replacement, setReplacement] = useState('')
-  const [dialog, setDialog] = useState<'link' | 'math' | 'diagram' | 'frontmatter' | null>(null)
+  const [dialog, setDialog] = useState<'link' | 'diagram' | 'frontmatter' | null>(null)
   const [dialogText, setDialogText] = useState('')
   const imageInput = useRef<HTMLInputElement>(null)
   const sourceRef = useRef<PlainTextEditorHandle>(null)
@@ -216,10 +219,17 @@ function NoteEditor({ payload, opened }: { payload: Payload; opened(): void }) {
   async function exportWord() {
     if (!editor) return
     try {
-      const bytes = await exportDocxBytes(editor.getJSON(), async (src) => {
-        const data = decodeImageDataUrl(src)
-        return data ? await toDocxImage(data, 620) : null
-      })
+      const bytes = await exportDocxBytes(
+        editor.getJSON(),
+        async (src) => {
+          const data = decodeImageDataUrl(src)
+          return data ? await toDocxImage(data, 620) : null
+        },
+        async (source, language) => {
+          const result = await renderDiagram(language, source)
+          return result.ok ? diagramSvgToPng(result.svg, 620) : null
+        },
+      )
       send({
         type: 'importCopy',
         name: payload.name.replace(/\.[^.]+$/, '.docx'),
@@ -235,12 +245,6 @@ function NoteEditor({ payload, opened }: { payload: Payload; opened(): void }) {
     if (dialog === 'link') {
       if (!/^(https?:|mailto:|#)/i.test(dialogText)) return
       editor.chain().focus().extendMarkRange('link').setLink({ href: dialogText }).run()
-    } else if (dialog === 'math') {
-      editor
-        .chain()
-        .focus()
-        .insertContent({ type: 'inlineMath', attrs: { latex: dialogText } })
-        .run()
     } else if (dialog === 'diagram') {
       editor
         .chain()
@@ -331,10 +335,8 @@ function NoteEditor({ payload, opened }: { payload: Payload; opened(): void }) {
               setDialogText('https://')
               setDialog('link')
             })}
-            {button('insertMath', () => {
-              setDialogText('E = mc^2')
-              setDialog('math')
-            })}
+            {button('insertMath', () => run(openMathCreate))}
+            {button('insertFootnote', () => run(insertFootnote))}
             {button('insertDiagram', () => {
               setDialogText('graph LR\n  A --> B')
               setDialog('diagram')
@@ -392,11 +394,9 @@ function NoteEditor({ payload, opened }: { payload: Payload; opened(): void }) {
             aria-label={t(
               dialog === 'frontmatter'
                 ? 'fmProperties'
-                : dialog === 'math'
-                  ? 'insertMath'
-                  : dialog === 'diagram'
-                    ? 'insertDiagram'
-                    : 'link',
+                : dialog === 'diagram'
+                  ? 'insertDiagram'
+                  : 'link',
             )}
             value={dialogText}
             onChange={(event) => setDialogText(event.target.value)}

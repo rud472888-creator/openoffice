@@ -461,6 +461,44 @@ summary:focus-visible {
   padding-top: 16px;
 }
 
+.feature-panel {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.feature-panel summary {
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.feature-panel > select,
+.feature-panel > input,
+.feature-panel > textarea,
+.feature-panel > label {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+}
+.feature-panel button {
+  margin: 4px;
+}
+.feature-panel label textarea {
+  margin-top: 8px;
+}
+.chart-data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  max-height: 50dvh;
+  overflow: auto;
+}
+.chart-data-grid input {
+  width: 100%;
+  min-width: 0;
+}
+
 @media (max-width: 650px) {
   .canvas-scroll {
     padding: 30px 12px;

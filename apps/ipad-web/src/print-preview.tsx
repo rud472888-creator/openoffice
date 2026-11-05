@@ -141,16 +141,29 @@ export async function showPrintPreview(
     footnote: options.model.options.footnotes ?? parsed.footnotes,
     endnote: options.model.options.endnotes ?? parsed.endnotes,
   }
-  const notesFor = (block: Block, sec: SectionSettings) => {
-    const refs = new Set(
-      (block.runs ?? [])
-        .filter((run) => run.noteRef?.kind === 'footnote')
-        .map((run) => run.noteRef!.id),
-    )
-    for (const note of block.table?.rows.flatMap((row) =>
-      row.flatMap((cell) => (cell.richParas ?? []).flatMap((paragraph) => paragraph.runs)),
-    ) ?? [])
-      if (note.noteRef?.kind === 'footnote') refs.add(note.noteRef.id)
+  const liveBlocks = [...host.querySelector<HTMLElement>('.ProseMirror')!.children] as HTMLElement[]
+  const liveByIndex = new Map(
+    liveBlocks
+      .filter((element) => element.hasAttribute('data-idx'))
+      .map((element) => [Number(element.dataset.idx), element]),
+  )
+  const notesFor = (block: Block | undefined, sec: SectionSettings, dom?: HTMLElement) => {
+    const refs = dom
+      ? new Set(
+          [...dom.querySelectorAll<HTMLElement>('[data-note-kind="footnote"][data-note-ref]')].map(
+            (element) => element.dataset.noteRef!,
+          ),
+        )
+      : new Set(
+          (block?.runs ?? [])
+            .filter((run) => run.noteRef?.kind === 'footnote')
+            .map((run) => run.noteRef!.id),
+        )
+    if (!dom)
+      for (const note of block?.table?.rows.flatMap((row) =>
+        row.flatMap((cell) => (cell.richParas ?? []).flatMap((paragraph) => paragraph.runs)),
+      ) ?? [])
+        if (note.noteRef?.kind === 'footnote') refs.add(note.noteRef.id)
     return noteLists.footnote
       .filter((note) => refs.has(note.id))
       .map((note, index) => noteItem(note, index, sec, options))
@@ -159,10 +172,9 @@ export async function showPrintPreview(
     const result: PageNoteItem[][] = slices.map(() => [])
     for (const block of blocks) {
       const source = block.docxIndex === undefined ? undefined : byIndex.get(block.docxIndex)
-      if (!source) continue
       const sec = sections[block.section ?? 0]?.settings ?? section
       const at = pageAt(slices, block.top + 0.5) - 1
-      result[at]?.push(...notesFor(source, sec))
+      result[at]?.push(...notesFor(source, sec, block.el))
     }
     return result
   }
@@ -194,7 +206,7 @@ export async function showPrintPreview(
     const block = byIndex.get(index)
     if (!block) return undefined
     const sec = sections.find((section) => index <= section.lastBlockIndex)?.settings ?? section
-    const notes = notesFor(block, sec)
+    const notes = notesFor(block, sec, liveByIndex.get(index))
     const flags =
       block.type === 'table'
         ? {

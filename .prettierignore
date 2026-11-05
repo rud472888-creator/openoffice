@@ -33,3 +33,6 @@ tools/ooxml-validate/schemas/
 
 # Built-in skills: third-party skill files kept byte-identical to upstream (see NOTICE).
 apps/shell/resources/builtin-skills/*/
+
+apps/ipad-sheets/vendor/legacy-import/THIRD-PARTY-NOTICES.txt
+apps/ipad-sheets/tests/fixtures/LICENSE-calamine.txt

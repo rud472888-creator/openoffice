@@ -24,6 +24,7 @@ final class DocumentLibrary {
     private let directory: URL
     private let fileManager: FileManager
     private var favorites: Set<UUID> = []
+    private var readingMetadata = EditorReadingMetadata()
     nonisolated static let maximumImportBytes: Int64 = 100 * 1_024 * 1_024
     nonisolated static let maximumTextBytes = 10 * 1_024 * 1_024
 
@@ -42,16 +43,28 @@ final class DocumentLibrary {
             if let data = try? Data(contentsOf: favoritesURL) {
                 favorites = Set((try? JSONDecoder().decode([UUID].self, from: data)) ?? [])
             }
+            if let data = try? Data(contentsOf: readingMetadataURL), let stored = try? JSONDecoder().decode(EditorReadingMetadata.self, from: data) { readingMetadata = stored }
             try reload()
         } catch { present(error) }
     }
 
     private var favoritesURL: URL { directory.appendingPathComponent("favorites.json") }
+    private var readingMetadataURL: URL { directory.appendingPathComponent(".reading-state.json") }
     var selectedDocument: OfficeDocument? { documents.first { $0.id == selectedID } }
     var openDocuments: [OfficeDocument] { openDocumentIDs.compactMap { id in documents.first { $0.id == id } } }
 
     func present(_ error: Error) { errorMessage = error.localizedDescription }
     func retryPendingSaves() { for action in Array(pendingSaveActions.values) { action() } }
+
+    func readingState(for document: OfficeDocument) -> [String: Any] { readingMetadata.payload(for: document.id) }
+
+    func saveReadingState(_ message: [String: Any], document: OfficeDocument) throws {
+        guard documents.contains(where: { $0.id == document.id }) else { throw LibraryError.missingDocument }
+        var updated = readingMetadata
+        try updated.update(id: document.id, message: message)
+        try JSONEncoder().encode(updated).write(to: readingMetadataURL, options: .atomic)
+        readingMetadata = updated
+    }
 
     func closeTab(_ document: OfficeDocument) throws {
         guard !savingDocumentIDs.contains(document.id) else { throw LibraryError.pendingSave }

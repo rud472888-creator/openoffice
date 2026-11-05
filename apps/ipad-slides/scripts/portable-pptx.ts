@@ -13,11 +13,22 @@ export function portablePptxXml(): Plugin {
       if (
         source === './zip' &&
         importer?.startsWith(engine) &&
-        /\/(?:notes|comments|resource-cleanup)\.ts$/.test(importer)
+        /\/(?:notes|comments|resource-cleanup|layout|master-edit)\.ts$/.test(importer)
       )
         return zip
     },
     transform(code, id) {
+      if (id.startsWith(engine) && id.endsWith('/chart-insert.ts')) {
+        const prefix = code.slice(0, code.indexOf('export function writeChartWorkbook('))
+        return {
+          code: prefix.replace(
+            /import\s+(?:type\s+)?[\s\S]*?\sfrom\s+'([^']+)'/g,
+            (statement, path: string) =>
+              ['./types', './xml-utils', './chart-workbook'].includes(path) ? statement : '',
+          ),
+          map: null,
+        }
+      }
       if (id.startsWith(engine) && /\/(?:notes|comments)\.ts$/.test(id))
         return { code: `import { Buffer } from ${JSON.stringify(bytes)};\n${code}`, map: null }
     },

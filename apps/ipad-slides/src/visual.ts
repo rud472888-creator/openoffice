@@ -300,6 +300,10 @@ export class VisualPresentation {
       this.invalidate(true)
   }
 
+  apply(updates: Map<string, string | Uint8Array>): void {
+    this.commit(updates)
+  }
+
   undo(): void {
     const previous = this.undoStates.at(-1)
     if (!previous) return

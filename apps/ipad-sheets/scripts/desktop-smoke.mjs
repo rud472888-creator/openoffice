@@ -38,6 +38,11 @@ try {
           postMessage: (message) => {
             window.nativeMessages.push(message)
             console.log('HOST:', message.type, message.message ?? '')
+            if (message.type === 'importCopy' && message.requestId)
+              setTimeout(
+                () => window.everyOffice.didExport(message.requestId, { completed: true }),
+                0,
+              )
           },
         },
       },
@@ -112,8 +117,52 @@ try {
   await page.screenshot({
     path: fileURLToPath(new URL('../build/desktop-narrow.png', import.meta.url)),
   })
+  await page.setViewportSize({ width: 1024, height: 768 })
+  for (const [kind, input] of [
+    ['csv', Buffer.from('Name,Code\r\n한글,00123\r\n')],
+    ['tsv', Buffer.from('Name\tCode\r\n한글\t00123\r\n')],
+    ['xls', await readFile(new URL('../tests/fixtures/formulas.xls', import.meta.url))],
+    ['ods', await readFile(new URL('../tests/fixtures/dates.ods', import.meta.url))],
+  ]) {
+    await page.evaluate(
+      async ({ kind, base64 }) => {
+        window.nativeMessages = []
+        await window.everyOffice.openDocument({
+          name: `Import.${kind}`,
+          base64,
+          kind,
+          locale: 'en',
+        })
+        window.__genofficeDebug.univerAPI
+          .getActiveWorkbook()
+          .getActiveSheet()
+          .getRange('Z10')
+          .setValue('Imported 한글')
+      },
+      { kind, base64: input.toString('base64') },
+    )
+    await page.waitForFunction(() =>
+      window.nativeMessages.some((message) => message.type === 'changed'),
+    )
+    await page.evaluate(async () => window.everyOffice.saveDocument())
+    const messages = await page.evaluate(() => window.nativeMessages)
+    const copied = messages.find((message) => message.type === 'importCopy')
+    assert.equal(copied?.kind, 'xlsx', `${kind} creates XLSX copy`)
+    assert.equal(copied.conversionSave, true)
+    assert.ok(Number.isInteger(copied.revision))
+    assert.equal(
+      messages.some((message) => message.type === 'save'),
+      false,
+      `${kind} original is never overwritten`,
+    )
+    const converted = await JSZip.loadAsync(Buffer.from(copied.base64, 'base64'))
+    assert.ok(
+      (await converted.file('xl/worksheets/sheet1.xml').async('string')).includes('Imported 한글'),
+    )
+  }
+  assert.deepEqual(exceptions, [])
   console.log(
-    'PASS: actual desktop Univer grid, formulas, Korean edit, OOXML caches, save/reopen and narrow viewport.',
+    'PASS: desktop grid/formulas/Korean/cache/save/reopen/tablet/narrow; CSV/TSV/XLS/ODS import-copy saves preserve originals.',
   )
 } finally {
   await browser.close()

@@ -6,6 +6,8 @@ import { LocaleProvider, setModuleLang } from '../../sheets/src/renderer/i18n/lo
 import { installCanvasFontFallback } from '../../sheets/src/renderer/cell-font-fallback'
 import { DesktopHost } from './desktop-host'
 import { initializeCalculation } from './calculation'
+import { initializeLegacyImporter } from './legacy-import'
+import legacyWasmUrl from '../vendor/legacy-import/legacy-import.wasm?url'
 import { applyAiPanelPrefs } from '@genoffice/ui'
 import wasmUrl from '../vendor/ironcalc-xlsx/wasm_bg.wasm?url'
 import '../../../packages/ui/src/tokens.css'
@@ -15,6 +17,11 @@ import './desktop.css'
 
 const wasm = atob(wasmUrl.slice(wasmUrl.indexOf(',') + 1))
 initializeCalculation(Uint8Array.from(wasm, (c) => c.charCodeAt(0)))
+initializeLegacyImporter(
+  Uint8Array.from(atob(legacyWasmUrl.slice(legacyWasmUrl.indexOf(',') + 1)), (c) =>
+    c.charCodeAt(0),
+  ),
+)
 const host = new DesktopHost()
 window.everyOfficeDesktopRuntimeReady = (runtime) => host.bindRuntime(runtime)
 window.everyOfficeDesktopWorkbookReady = (id) => host.workbookReady(id)

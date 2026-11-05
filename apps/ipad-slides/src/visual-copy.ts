@@ -90,6 +90,34 @@ const notices: Record<Lang, readonly [string, string]> = {
 
 export function visualCopy(language?: string) {
   const lang = normalizeLang(language)
-  return { ...labels[lang], hint: notices[lang][0], readOnly: notices[lang][1] }
+  const author: Record<Lang, string> = {
+    en: 'Author',
+    ko: '작성자',
+    zh: '作者',
+    'zh-TW': '作者',
+    ja: '作成者',
+    fr: 'Auteur',
+    de: 'Autor',
+    es: 'Autor',
+    th: 'ผู้เขียน',
+    id: 'Penulis',
+    ru: 'Автор',
+    ar: 'المؤلف',
+    pt: 'Autor',
+    it: 'Autore',
+    pl: 'Autor',
+    cs: 'Autor',
+    nl: 'Auteur',
+    ms: 'Penulis',
+    he: 'מחבר',
+    hi: 'लेखक',
+    vi: 'Tác giả',
+  }
+  return {
+    ...labels[lang],
+    author: author[lang],
+    hint: notices[lang][0],
+    readOnly: notices[lang][1],
+  }
 }
 export type VisualCopy = ReturnType<typeof visualCopy>

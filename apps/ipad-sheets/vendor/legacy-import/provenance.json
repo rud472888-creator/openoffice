@@ -1,0 +1,13 @@
+{
+  "engine": "calamine",
+  "version": "0.37.0",
+  "compiler": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "target": "wasm32-unknown-unknown",
+  "maximum_memory_bytes": 268435456,
+  "sha256": {
+    "vendor/legacy-import/legacy-import.wasm": "9945e745cff5a47755f2ee69d4d5f69a6cb08ef45ab2cdab642add124d358cab",
+    "native/legacy-import/Cargo.lock": "caa182d7078ebf055b6af259d9ff1bb1289b582e17ab3acffecdc5cff53fa5a2",
+    "native/legacy-import/src/lib.rs": "a11b1aa35e44e2bd578d54895b65cccf90bbc4c798a804b0e82beb6774a1a9d3",
+    "native/legacy-import/.cargo/config.toml": "dc8b5dd9c3d00e2aa0af07ed6edc8337943ca5fb34c8629ee1446e6f99875859"
+  }
+}

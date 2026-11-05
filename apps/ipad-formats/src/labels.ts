@@ -57,6 +57,18 @@ export function label(text: string, language: string): string {
     'Edit selected text': () => html(lang, 'editText'),
     'Edit text': () => html(lang, 'editText'),
     'Insert paragraph': () => html(lang, 'insertParagraph'),
+    'Find in book': () => epub(lang, 'find'),
+    'Text to find in the book': () => epub(lang, 'findPlaceholder'),
+    Find: () => epub(lang, 'findRun'),
+    'No matches': () => epub(lang, 'findNone'),
+    'Replace with': () => epub(lang, 'editReplaceWith'),
+    'Replace all': () => epub(lang, 'editReplaceAll'),
+    'Smaller text': () => epub(lang, 'fontSmaller'),
+    'Larger text': () => epub(lang, 'fontLarger'),
+    'Line spacing': () => epub(lang, 'lineSpacing'),
+    "Book's own": () => epub(lang, 'lineSpacingBook'),
+    'Dark view': () => epub(lang, 'darkView'),
+    'Text size': () => epub(lang, 'fontSize'),
     Previous: () => epub(lang, 'prevChapter'),
     Next: () => epub(lang, 'nextChapter'),
     Bold: () => epub(lang, 'editBold'),
@@ -69,4 +81,12 @@ export function label(text: string, language: string): string {
     Fit: () => translateIn(lang, 'zoomFit'),
   }
   return labels[text]?.() ?? text
+}
+
+export function bookLabel(
+  key: keyof (typeof epubStrings)['en'],
+  language: string,
+  values: Record<string, string | number> = {},
+): string {
+  return epub(editorLanguage(language), key, values)
 }

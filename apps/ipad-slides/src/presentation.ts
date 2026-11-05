@@ -21,6 +21,20 @@ const MC = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const encoder = new TextEncoder()
 
+export function assertValidText(value: string): void {
+  if (value.length > 100000) throw new Error('presentationTooLarge')
+  for (const character of value) {
+    const point = character.codePointAt(0)!
+    if (
+      (point < 0x20 && point !== 9 && point !== 10 && point !== 13) ||
+      point === 0xfffe ||
+      point === 0xffff ||
+      (point >= 0xd800 && point <= 0xdfff)
+    )
+      throw new Error('invalidText')
+  }
+}
+
 export interface TextRun {
   originalText: string
   text: string
@@ -437,17 +451,7 @@ export class PresentationDocument {
     const entry = this.slides[slide]?.paragraphs[paragraph]?.runs[run]
     if (!entry?.editable) throw new Error('readOnly')
     // Paragraph structure remains in the original XML; each control edits exactly one run.
-    if (value.length > 100000) throw new Error('presentationTooLarge')
-    for (const character of value) {
-      const point = character.codePointAt(0)!
-      if (
-        (point < 0x20 && point !== 9 && point !== 10 && point !== 13) ||
-        point === 0xfffe ||
-        point === 0xffff ||
-        (point >= 0xd800 && point <= 0xdfff)
-      )
-        throw new Error('invalidText')
-    }
+    assertValidText(value)
     if (entry.text === value) return false
     entry.text = value
     this.revision++

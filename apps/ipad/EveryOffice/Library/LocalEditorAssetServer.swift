@@ -55,6 +55,9 @@ final class LocalEditorAssetServer {
     private var port: UInt16?
     private var listener: NWListener?
     private var connections: [UUID: NWConnection] = [:]
+    private var startupCompletion: (@MainActor (Result<URL, Error>) -> Void)?
+    private var startupDeadline: DispatchWorkItem?
+    private var stopped = false
 
     init(root: URL, token: String = UUID().uuidString) {
         resolver = EditorAssetResolver(root: root, token: token)
@@ -62,34 +65,53 @@ final class LocalEditorAssetServer {
 
     func start(completion: @escaping @MainActor (Result<URL, Error>) -> Void) {
         queue.async { [self] in
+            guard !stopped else { Task { @MainActor in completion(.failure(URLError(.cancelled))) }; return }
+            guard listener == nil, startupCompletion == nil else { Task { @MainActor in completion(.failure(URLError(.cannotConnectToHost))) }; return }
+            startupCompletion = completion
             do {
                 let parameters = NWParameters.tcp
                 parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
                 let listener = try NWListener(using: parameters)
                 self.listener = listener
-                var completed = false
                 listener.stateUpdateHandler = { [weak self, weak listener] state in
                     guard let self else { return }
                     switch state {
                     case .ready:
-                        guard !completed, let assignedPort = listener?.port?.rawValue,
+                        guard self.startupCompletion != nil, let assignedPort = listener?.port?.rawValue,
                               let url = URL(string: "http://localhost:\(assignedPort)/\(self.resolver.token)/index.html") else { return }
-                        completed = true
                         self.stateLock.lock()
                         self.port = assignedPort
                         self.stateLock.unlock()
-                        Task { @MainActor in completion(.success(url)) }
+                        self.finishStartup(.success(url))
                     case .failed(let error):
-                        guard !completed else { return }
-                        completed = true
-                        Task { @MainActor in completion(.failure(error)) }
+                        self.finishStartup(.failure(error))
+                    case .cancelled:
+                        self.finishStartup(.failure(URLError(.cancelled)))
                     default: break
                     }
                 }
                 listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
+                let deadline = DispatchWorkItem { [weak self] in self?.finishStartup(.failure(URLError(.timedOut))) }
+                startupDeadline = deadline
+                queue.asyncAfter(deadline: .now() + 15, execute: deadline)
                 listener.start(queue: queue)
-            } catch { Task { @MainActor in completion(.failure(error)) } }
+            } catch { finishStartup(.failure(error)) }
         }
+    }
+
+    private func finishStartup(_ result: Result<URL, Error>) {
+        guard let completion = startupCompletion else { return }
+        startupCompletion = nil
+        startupDeadline?.cancel()
+        startupDeadline = nil
+        if case .failure = result {
+            listener?.cancel()
+            listener = nil
+            stateLock.lock()
+            port = nil
+            stateLock.unlock()
+        }
+        Task { @MainActor in completion(result) }
     }
 
     func allowsNavigation(to url: URL) -> Bool {
@@ -104,6 +126,8 @@ final class LocalEditorAssetServer {
 
     func stop() {
         queue.async { [self] in
+            stopped = true
+            finishStartup(.failure(URLError(.cancelled)))
             listener?.cancel()
             listener = nil
             for connection in connections.values { connection.cancel() }

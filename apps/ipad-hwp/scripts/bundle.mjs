@@ -1,7 +1,8 @@
-import { cpSync, mkdirSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 const target = resolve('../ipad/EveryOffice/Resources/HwpEditor')
+rmSync(target, { recursive: true, force: true })
 mkdirSync(target, { recursive: true })
 cpSync('dist', target, { recursive: true })
 cpSync('../hwp/public/studio', resolve(target, 'studio'), { recursive: true })

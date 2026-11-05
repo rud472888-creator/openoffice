@@ -307,3 +307,44 @@ body {
 .ipad-print-root .pagination-preview {
   z-index: 20000;
 }
+.ipad-desktop-dialog-root .modal-backdrop {
+  z-index: 30000;
+}
+.ipad-desktop-dialog-root .modal {
+  max-height: 90vh;
+  overflow: auto;
+}
+.ipad-desktop-dialog-root input,
+.ipad-desktop-dialog-root select,
+.ipad-desktop-dialog-root button {
+  min-height: 40px;
+}
+.touch-ribbon .ribbon-tabs {
+  display: flex;
+  width: 100%;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.touch-ribbon .ribbon-tabs button {
+  flex-shrink: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.touch-ribbon .ribbon-tabs button[aria-selected='true'] {
+  border-color: var(--accent);
+  background: var(--selection);
+}
+.touch-ribbon {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.touch-ribbon [hidden] {
+  display: none !important;
+}
+@media (max-width: 700px) {
+  .touch-ribbon {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}

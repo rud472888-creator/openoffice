@@ -3,6 +3,12 @@ import { renderSlideSvg } from './svg'
 import { visualCopy, type VisualCopy } from './visual-copy'
 import { localeCopy } from './i18n'
 import type { SlideElement } from '../../../packages/pptx-engine/src/types'
+import { PresentationFeatures } from './features'
+import {
+  elementSpid,
+  type AnimEffectKind,
+  type AnimTrigger,
+} from '../../../packages/pptx-engine/src/animation'
 
 type Copy = ReturnType<typeof localeCopy>
 interface WorkspaceOptions {
@@ -24,6 +30,10 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 export class SlideWorkspace {
   readonly visual: VisualPresentation
+  readonly features: PresentationFeatures
+  private featuresOpen = false
+  private pendingNotes?: { slide: number; text: string }
+  private flushing?: Promise<void>
   private v: VisualCopy
   private copy: Copy
   private slideIndex = 0
@@ -54,11 +64,13 @@ export class SlideWorkspace {
     private options: WorkspaceOptions,
   ) {
     this.visual = new VisualPresentation(document)
+    this.features = new PresentationFeatures(this.visual)
     this.v = visualCopy(options.language)
     this.copy = localeCopy(options.language ?? navigator.language)
   }
 
   async render(index: number, resetSelection = true): Promise<boolean> {
+    if (index !== this.slideIndex) await this.flushDrafts()
     const version = ++this.renderVersion
     this.slideIndex = index
     if (resetSelection) this.selected = undefined
@@ -91,6 +103,23 @@ export class SlideWorkspace {
     } catch (reason) {
       this.options.error(reason)
       return false
+    }
+  }
+
+  async flushDrafts(): Promise<void> {
+    if (this.flushing) return this.flushing
+    this.flushing = (async () => {
+      while (this.pendingNotes) {
+        const draft = this.pendingNotes
+        await this.features.setNotes(draft.slide, draft.text)
+        if (this.pendingNotes === draft) this.pendingNotes = undefined
+        this.options.changed()
+      }
+    })()
+    try {
+      await this.flushing
+    } finally {
+      this.flushing = undefined
     }
   }
 
@@ -152,6 +181,9 @@ export class SlideWorkspace {
       ['rect', this.v.rectangle],
       ['ellipse', this.v.ellipse],
       ['table', `${this.v.table} (3 × 3)`],
+      ['chart-bar', this.v.chartBar],
+      ['chart-line', this.v.chartLine],
+      ['chart-pie', this.v.chartPie],
     ]) {
       const option = el('option', label)
       option.value = value
@@ -168,6 +200,17 @@ export class SlideWorkspace {
       if (kind === 'table')
         void this.command(async () => {
           this.selected = await this.visual.insertTable(this.slideIndex)
+        })
+      if (kind.startsWith('chart-'))
+        void this.command(async () => {
+          this.selected = await this.features.newChart(
+            this.slideIndex,
+            kind.slice(6) as 'bar' | 'line' | 'pie',
+            {
+              categories: ['A', 'B', 'C'],
+              series: [{ name: this.v.series.replace('{n}', '1'), values: [10, 20, 15] }],
+            },
+          )
         })
     })
     this.toolbar.append(shapes)
@@ -565,6 +608,7 @@ export class SlideWorkspace {
       this.select(list.value === '' ? undefined : Number(list.value)),
     )
     this.inspector.append(list)
+    this.mountFeatures()
     if (this.selected === undefined) {
       this.inspector.append(el('p', this.v.select, 'empty'))
       this.field(
@@ -579,6 +623,7 @@ export class SlideWorkspace {
     }
     const selected = this.selected
     const element = visual.model.elements[selected]
+    if (element.type === 'chart') this.mountChartData(selected)
     if (!visual.editable.has(selected)) this.inspector.append(el('p', this.v.readOnly, 'read-only'))
     else {
       const properties = el('div', undefined, 'property-grid')
@@ -751,5 +796,266 @@ export class SlideWorkspace {
       text.append(label)
     }
     this.inspector.append(text)
+  }
+
+  private mountChartData(selected: number): void {
+    const details = el('details', undefined, 'feature-panel')
+    details.append(el('summary', this.v.chartData))
+    this.inspector.append(details)
+    details.addEventListener('toggle', () => {
+      if (!details.open || details.dataset.loaded) return
+      details.dataset.loaded = 'true'
+      void this.features
+        .chartData(this.slideIndex, selected)
+        .then((data) => {
+          if (!details.isConnected) return
+          const grid = el('div', undefined, 'chart-data-grid')
+          const categoryFields: HTMLInputElement[] = [],
+            names: HTMLInputElement[] = [],
+            values: HTMLInputElement[][] = []
+          data.series.forEach((series, s) => {
+            const input = el('input')
+            input.value = series.name
+            input.setAttribute('aria-label', this.v.series.replace('{n}', String(s + 1)))
+            grid.append(input)
+            names.push(input)
+            values.push([])
+          })
+          data.categories.forEach((category, row) => {
+            const input = el('input')
+            input.value = category
+            input.setAttribute('aria-label', this.v.category.replace('{n}', String(row + 1)))
+            grid.append(input)
+            categoryFields.push(input)
+            data.series.forEach((series, s) => {
+              const value = el('input')
+              value.type = 'number'
+              value.value = String(series.values[row])
+              value.setAttribute('aria-label', `${s + 1} / ${row + 1}`)
+              grid.append(value)
+              values[s].push(value)
+            })
+          })
+          details.append(grid)
+          this.button(
+            this.v.apply,
+            () =>
+              this.features.editChart(this.slideIndex, selected, {
+                categories: categoryFields.map((field) => field.value),
+                series: names.map((field, s) => ({
+                  name: field.value,
+                  values: values[s].map((value) => Number(value.value)),
+                })),
+              }),
+            this.visual.document.readOnly,
+            details,
+          )
+        })
+        .catch((reason) => {
+          details.append(el('p', this.v.readOnly))
+          this.options.error(reason)
+        })
+    })
+  }
+
+  private mountFeatures(): void {
+    const details = el('details', undefined, 'feature-panel')
+    details.append(el('summary', this.v.review))
+    this.inspector.append(details)
+    const index = this.slideIndex
+    details.addEventListener('toggle', () => {
+      this.featuresOpen = details.open
+      if (!details.open || details.dataset.loaded) return
+      details.dataset.loaded = 'true'
+      void Promise.all([
+        this.features.notes(index),
+        this.features.comments(index),
+        this.features.layouts(),
+        this.features.animationState(index),
+      ])
+        .then(([notes, comments, parts, state]) => {
+          if (!details.isConnected) return
+          const layout = el('select')
+          layout.setAttribute('aria-label', this.v.layout)
+          layout.append(el('option', this.v.layout))
+          layout.options[0].value = ''
+          for (const part of parts.layouts) {
+            const option = el('option', part.name)
+            option.value = part.path
+            layout.append(option)
+          }
+          layout.addEventListener('change', () => {
+            if (layout.value)
+              void this.command(() => this.features.assignLayout(index, layout.value))
+          })
+          details.append(layout)
+          const transition = el('select')
+          transition.setAttribute('aria-label', this.v.transitions)
+          for (const [value, text] of [
+            ['none', this.v.transitionNone],
+            ['fade', this.v.transitionFade],
+            ['push', this.v.transitionPush],
+            ['wipe', this.v.transitionWipe],
+          ]) {
+            const option = el('option', text)
+            option.value = value
+            transition.append(option)
+          }
+          transition.value = state.transition
+          transition.addEventListener('change', () => {
+            void this.command(() =>
+              this.features.transition(
+                index,
+                transition.value as 'none' | 'fade' | 'push' | 'wipe',
+              ),
+            )
+          })
+          details.append(transition)
+          const noteLabel = el('label', this.v.notes),
+            noteInput = el('textarea')
+          noteInput.value = this.pendingNotes?.slide === index ? this.pendingNotes.text : notes
+          noteInput.rows = 4
+          noteInput.readOnly = this.visual.document.readOnly
+          noteInput.setAttribute('aria-label', this.v.notes)
+          noteInput.addEventListener('input', () => {
+            this.pendingNotes = { slide: index, text: noteInput.value }
+            this.visual.document.revision++
+            this.options.changed()
+          })
+          noteLabel.append(noteInput)
+          details.append(noteLabel)
+          this.button(
+            this.v.apply,
+            () => this.flushDrafts(),
+            this.visual.document.readOnly,
+            details,
+          )
+          details.append(el('h3', this.v.comments.replace('{n}', String(index + 1))))
+          for (const comment of comments) {
+            const label = el('label', comment.author),
+              text = el('textarea')
+            text.value = comment.text
+            text.rows = 2
+            text.setAttribute(
+              'aria-label',
+              `${this.v.comments.replace('{n}', String(index + 1))} ${comment.author}`,
+            )
+            label.append(text)
+            details.append(label)
+            this.button(
+              this.v.apply,
+              () => this.features.editComment(index, comment, text.value),
+              this.visual.document.readOnly,
+              details,
+            )
+            this.button(
+              this.v.deleteObject,
+              () => this.features.editComment(index, comment, null),
+              this.visual.document.readOnly,
+              details,
+            )
+          }
+          const author = el('input')
+          author.placeholder = this.v.author
+          author.setAttribute('aria-label', this.v.author)
+          const comment = el('textarea')
+          comment.placeholder = this.v.newComment
+          comment.setAttribute('aria-label', this.v.newComment)
+          comment.rows = 2
+          details.append(author, comment)
+          this.button(
+            this.v.postComment,
+            () => this.features.addComment(index, author.value, comment.value),
+            this.visual.document.readOnly,
+            details,
+          )
+          const selected = this.selected,
+            target = selected === undefined ? undefined : this.visualSlide?.model.elements[selected]
+          if (target) {
+            const spid = elementSpid(target)
+            if (spid) {
+              const effect = el('select')
+              effect.setAttribute('aria-label', this.v.animation)
+              for (const [value, text] of [
+                ['fade', this.v.effectFade],
+                ['appear', this.v.effectAppear],
+                ['flyIn', this.v.effectFly],
+                ['spin', this.v.effectSpin],
+              ]) {
+                const option = el('option', text)
+                option.value = value
+                effect.append(option)
+              }
+              details.append(effect)
+              this.button(
+                this.v.animation,
+                () =>
+                  this.features.setAnimations(index, [
+                    ...state.animations,
+                    {
+                      spid,
+                      effect: effect.value as AnimEffectKind,
+                      trigger: 'onClick',
+                      durationMs: 500,
+                      delayMs: 0,
+                    },
+                  ]),
+                this.visual.document.readOnly,
+                details,
+              )
+            }
+          }
+          for (const [animationIndex, animation] of state.animations.entries()) {
+            const row = el('div', undefined, 'format-actions')
+            row.append(el('span', `${animationIndex + 1} · ${animation.spid}`))
+            const duration = this.field(
+              this.v.duration,
+              animation.durationMs / 1000,
+              async (value) => {
+                const next = structuredClone(state.animations)
+                next[animationIndex].durationMs = Number(value) * 1000
+                await this.features.setAnimations(index, next)
+              },
+              'number',
+              row,
+            )
+            duration.min = '0'
+            duration.max = '600'
+            const trigger = el('select')
+            trigger.setAttribute('aria-label', this.v.animation)
+            for (const [value, text] of [
+              ['onClick', this.v.triggerClick],
+              ['withPrev', this.v.triggerWith],
+              ['afterPrev', this.v.triggerAfter],
+            ]) {
+              const option = el('option', text)
+              option.value = value
+              trigger.append(option)
+            }
+            trigger.value = animation.trigger
+            trigger.addEventListener('change', () => {
+              void this.command(async () => {
+                const next = structuredClone(state.animations)
+                next[animationIndex].trigger = trigger.value as AnimTrigger
+                await this.features.setAnimations(index, next)
+              })
+            })
+            row.append(trigger)
+            this.button(
+              this.v.deleteObject,
+              () =>
+                this.features.setAnimations(
+                  index,
+                  state.animations.filter((_a, i) => i !== animationIndex),
+                ),
+              this.visual.document.readOnly,
+              row,
+            )
+            details.append(row)
+          }
+        })
+        .catch(this.options.error)
+    })
+    if (this.featuresOpen) details.open = true
   }
 }

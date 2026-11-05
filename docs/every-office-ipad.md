@@ -1,59 +1,36 @@
 # every office for iPad
 
-This is an iPad-specific client for the IeumOffice repository. It keeps the desktop applications intact and adds an offline native document library plus document editors bundled into WKWebView. It does not launch Electron, Node, Claude or Codex on iPad.
+This iPad client keeps the desktop applications and document engines intact, with a native SwiftUI document library and offline WKWebView editors. It does not launch Electron or Node. The user explicitly excludes Claude/Codex execution and the project terminal from iPad.
 
-## Product behavior
+Files imports create independent local copies. The app provides recent/favorite/search, document tabs, rename/duplicate, guarded atomic saves, sharing and printing. Native PDFKit supports page operations, text search, highlights and notes; PencilKit supplies ink annotations.
 
-The iPad app uses the existing white/gray surfaces, charcoal text, coral action color and blue accent. A native split view adapts to landscape, portrait and narrow multitasking windows. Files imports create private local copies; editing does not overwrite a file provider's original. Export sends an explicit copy back to Files. There are no advertisements, analytics, accounts or subscription prompts.
+| Format                | Implemented editor path                                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DOCX / ODT / DOC      | Desktop rich editor/schema, original-preserving save, review commands, headers/footers, pagination preview, PDF/print; ODT write-back and legacy DOC import-copy |
+| XLSX                  | Actual desktop Univer grid and matched IronCalc WASM recalculation, preserving OOXML save and result caches; CSV/TSV/XLS/ODS import copies                       |
+| PPTX                  | Desktop parse/render modules with visual touch transforms, text/format/table/image edits, slide operations, slideshow and PDF/print                              |
+| HWP / HWPX            | Full pinned offline studio, memo editing, desktop save repairs, local document checks, verified conversion copies and PDF/print                                  |
+| Markdown / TXT / JSON | Desktop rich Markdown and CodeMirror source editors, source preservation, search/replace, math/diagrams and DOCX/PDF export                                      |
+| XMind                 | Desktop graphical map controller, layouts/themes/topics/notes/images/relationships and preservation                                                              |
+| EPUB / HTML           | Desktop EPUB range editor, chapter/local assets; HTML source and sandboxed live preview                                                                          |
+| draw.io               | Verified pinned offline vendor application with the desktop transactional bridge                                                                                 |
 
-| Format                       | iPad capability                                                              | Deliberate limits                                                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Text / Markdown              | Create, edit, save and export local documents                                | Source editing, not desktop Markdown feature parity                                                                           |
-| DOCX                         | Edit ordinary paragraph and table-cell text through the existing DOCX engine | Complex fields, tracked changes, embedded objects and protected content remain read-only; no desktop pagination/layout editor |
-| XLSX                         | Edit simple cell values in an offline sheet grid, retain workbook parts      | Formula cells remain read-only and display cached values; no formula recalculation engine                                     |
-| PPTX                         | Edit existing slide text while retaining presentation parts                  | Text/outline editing, not a slide layout designer                                                                             |
-| PDF                          | Native PDFKit viewing and selection highlighting                             | No full desktop PDF object editor or OCR                                                                                      |
-| Other supported office types | Native Quick Look preview where iPadOS supports the format                   | No editing or promised preview support for every format                                                                       |
+The [parity checklist](ipad-feature-parity.md) records missing desktop features and native/device acceptance. These implementations do not establish full desktop parity. AI/cloud services, advanced format-specific tools, recovery after process termination and physical-iPad behavior retain separate work and acceptance gates.
 
-Documents are saved in the app's local library and exported explicitly. Original desktop source, tests and engines are retained. Browser adapters preserve unedited archive parts and decline structures they cannot safely edit. Files containing complex layout should be checked in their original office application after editing; the app does not claim complete Microsoft Office or HWP fidelity.
+## Build and architecture
 
-## Structure
+- `apps/ipad`: SwiftUI, PDFKit/PencilKit, tokenized loopback asset server, native save/export bridge, XcodeGen and native tests.
+- `apps/ipad-web`, `apps/ipad-sheets`, `apps/ipad-slides`, `apps/ipad-hwp`, `apps/ipad-formats`, `apps/ipad-markdown`: format hosts that reuse existing desktop modules.
+- `apps/ipad/scripts/verify-web.sh`: typecheck, tests and production bundles for all six workspaces, followed by complete bundled license notices.
+- `apps/ipad/scripts/verify-simulator.sh`: macOS Xcode project generation and iPad unit/UI tests.
+- `.github/workflows/ipad.yml`: locked dependency build and macOS Simulator CI.
 
-- `apps/ipad`: SwiftUI app, PDFKit and WKWebView host, XcodeGen specification, unit/UI tests.
-- `apps/ipad-web`: browser DOCX adapter and text editor, reusing `@genoffice/docx-engine`.
-- `apps/ipad-sheets`: offline XLSX worksheet adapter and touch grid.
-- `apps/ipad-slides`: offline PPTX text adapter and slide outline.
-- `apps/ipad/scripts/verify-web.sh`: browser adapter checks and resource builds.
-- `apps/ipad/scripts/verify-simulator.sh`: Mac-only Xcode project generation and iPad simulator checks.
-- `.github/workflows/ipad.yml`: macOS CI for the new client.
+Generated editor resources are ignored by Git and rebuilt before XcodeGen. Runtime assets, WASM, fonts and editor code are local. The asset server serves immutable bundle files only; document bytes travel through the WK bridge. Changed documents are written atomically, and acknowledgements refer to the saved revision. Failed writes leave the draft dirty and retryable.
 
-Generated browser bundles are built from the locked repository dependencies before compiling the native app. They contain no remote CDN imports. The native bridge accepts local editor messages and writes only the selected library document.
+## Validation
 
-## Upstream review
+See [current validation evidence](../apps/ipad/VALIDATION.md) for individual test counts and reproducible commands. Linux browser checks exercise real edit/save/reopen and export payloads; they do not prove WKWebView layout, iPad IME, Apple Pencil or physical-device memory behavior.
 
-See [the evidence and PR assessment](ipad-upstream-review.md). The relevant upstream PR commits were already present in the selected checkout; no duplicate cherry-picks were needed. Platform-independent document behavior is reused while desktop-only Electron, subprocess and filesystem APIs are replaced with iPad APIs.
+The initial client passed [iPad Simulator run 41977295120](https://github.com/rud472888-creator/openoffice/actions/runs/41977295120) at `4709947d4`. This predates the expanded desktop editors and is not acceptance evidence for the new implementation. Current CI results must be checked at their exact source revision.
 
-## Validation boundary
-
-The implementation environment is Linux. Browser and archive tests can run here, but SwiftUI/PDFKit compilation, native lifecycle behavior and Apple Pencil/device behavior require Xcode and an iPad simulator/device. A checked-in workflow or test is not evidence it passed. The delivery report must state separately which local checks passed and whether a remote simulator run completed.
-
-The icon is an original generated asset exported to the iOS 1024px app icon slot; see `apps/ipad/ICON.md`. Existing Apache-2.0 license and attribution remain applicable. This client is not an App Store release, and no distribution signing identity is included.
-
-## Verified simulator build
-
-The macOS/iPad Simulator workflow passed for commit
-[`4709947d4`](https://github.com/rud472888-creator/openoffice/commit/4709947d4)
-on 2026-11-05:
-[Every Office iPad run 41977295120](https://github.com/rud472888-creator/openoffice/actions/runs/41977295120).
-The successful job includes locked dependency installation, the 49 browser-adapter
-tests and bundles, native Xcode build and the configured unit/UI suites, followed
-by the `ipad-simulator-results` artifact upload. The UI suite exercises note
-creation/editing/persistence and bundled WKWebView DOCX editing across app relaunch.
-
-The earlier UI failures exposed hidden Home content at startup. The validated
-revision makes split-view visibility and compact-column navigation explicit and
-keeps the same create/edit/save/relaunch assertions. This is simulator evidence;
-physical iPad, Apple Pencil, external Files providers and App Store distribution
-have not been validated. `apps/ipad/VALIDATION.md` records the earlier Linux
-validation snapshot before the initial push; this section records the later
-successful native run.
+The [upstream assessment](ipad-upstream-review.md) records that the relevant upstream changes were already in the checkout. Apache-2.0 attribution and the bundled dependencies' notices remain included. The app icon is documented in `apps/ipad/ICON.md`. No App Store distribution signing identity or release is included.

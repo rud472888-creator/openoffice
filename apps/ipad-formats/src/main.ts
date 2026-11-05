@@ -13,6 +13,7 @@ interface OpenRequest {
   base64: string
   language?: string
   locale?: string
+  readingState?: unknown
 }
 declare global {
   interface Window {
@@ -97,6 +98,10 @@ window.everyOffice = {
         root: editor,
         language,
         name,
+        readingState: request.readingState,
+        updateReadingState(state) {
+          if (generation === current) post({ type: 'readingState', ...(state as object) })
+        },
         changed(draft = false) {
           if (generation !== current) return
           revision++
@@ -129,7 +134,8 @@ window.everyOffice = {
       if (kind === 'html' || kind === 'htm') opened = htmlView(bytes, host)
       else if (kind === 'xmind') opened = await mindmapView(bytes, host)
       else if (kind === 'epub') opened = await epubView(bytes, host)
-      else if (kind === 'drawio' || kind === 'dio') opened = await diagramView(bytes, host)
+      else if (kind === 'drawio' || kind === 'dio' || /\.drawio\.(svg|png)$/i.test(request.name))
+        opened = await diagramView(bytes, host)
       else throw new Error('This editor opens HTML, XMind, EPUB and draw.io files.')
       if (generation !== current) {
         opened.dispose()

@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { Script } from 'node:vm'
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,7 @@ const script = await readFile(new URL('dist/editor.iife.js', root), 'utf8')
 const style = await readFile(new URL('dist/editor.css', root), 'utf8')
 new Script(script)
 const output = new URL('../../ipad/EveryOffice/Resources/FormatsEditor/', import.meta.url)
+await rm(output, { recursive: true, force: true })
 await mkdir(output, { recursive: true })
 await writeFile(
   new URL('index.html', output),

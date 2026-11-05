@@ -1,0 +1,21 @@
+[package]
+name = "ipad-legacy-import"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+calamine = "=0.37.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+strip = "symbols"
+codegen-units = 1

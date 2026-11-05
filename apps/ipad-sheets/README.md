@@ -39,7 +39,9 @@ Claude/Codex process execution and the project terminal are unavailable on iPad.
 
 ## Current parity limits
 
-Full desktop parity is not yet established. Current gaps include legacy XLS/ODS and CSV/TSV spreadsheet import, library/file picker integration inside the renderer, grouped/freeform drawing geometry, some extension CF/DV metadata, modern threaded-comment metadata, specialized chart/pivot/theme details and native screenshot/spelling services. Unsupported extension CF/DV sections are protected from destructive rewrites. Existing parts remain preserved, and unsupported host services fail explicitly. Further browser/Simulator checks are required for individual dialogs and advanced features.
+Full desktop parity is not yet established. CSV/TSV use the shared desktop decoder/parser and open as spreadsheets. XLS/ODS use a bounded Calamine 0.37 WASM adapter for values, formulas, dates and XLS merges. Saving these imports creates an independent XLSX library copy through acknowledged `importCopy` with `conversionSave:true` and an exact revision; original files are never overwritten. ODF-specific formulas that cannot safely translate are rejected explicitly.
+
+Current gaps include advanced legacy import formatting/drawings, library/file picker integration inside the renderer, grouped/freeform drawing geometry, some extension CF/DV metadata, modern threaded-comment metadata, specialized chart/pivot/theme details and native screenshot/spelling services. Unsupported extension CF/DV sections are protected from destructive rewrites. Existing parts remain preserved, and unsupported host services fail explicitly. Further browser/Simulator checks are required for individual dialogs and advanced features.
 
 Input limits remain 32 MiB compressed, 4,000 ZIP entries, 16 MiB per expanded part and 64 MiB total expanded data. The shared ZIP gate performs metered inflation before JSZip. XML limits are 12 MiB per part, 300,000 elements and 128 levels. Encryption, ZIP64, unsupported compression, duplicate/normalized entry paths, external entities and signed packages are rejected. Values reject invalid XML controls, lone surrogates and oversized strings transactionally.
 
@@ -48,3 +50,5 @@ Tests cover exact unchanged saves, preserved formulas/styles/opaque ZIP parts, U
 ## Vendored engine provenance
 
 `vendor/ironcalc-xlsx` is the unmodified public npm `@ironcalc/wasm-xlsx@0.9.1` distribution. Tarball integrity: `sha512-daihrrjAGGv55bgv+yqHmiyn1URmWaxZ6CFWmqbNUJpl5SYgbwO0HmX8vbG4+8OeAA7aTCNqXNmgFF9eFqsj5A==`; upstream Git revision `eb9ca75bd99160c17902359d2d87225c4571c468`. Its MIT/Apache licenses and complete third-party notices are retained. `function-registry.json` is derived from that revision's English language data and registered function lookup, for exact diagnostics.
+
+Legacy importer rebuild instructions, exact binary/source hashes and complete locked Rust dependency license texts are in `vendor/legacy-import/{README.md,provenance.json,THIRD-PARTY-NOTICES.txt}`. `npm run build:legacy` performs its Rust tests, WASM build and license/provenance regeneration.

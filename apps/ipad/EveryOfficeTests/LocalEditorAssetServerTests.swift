@@ -54,7 +54,10 @@ final class LocalEditorAssetServerTests: XCTestCase {
         XCTAssertTrue(server.allowsNavigation(to: index))
         XCTAssertFalse(server.allowsNavigation(to: URL(string: "https://example.com/index.html")!))
         XCTAssertFalse(server.allowsNavigation(to: URL(string: "http://localhost:\(index.port!)/wrong/index.html")!))
-        let session = URLSession(configuration: .ephemeral)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 15
+        let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
         let (data, response) = try await session.data(from: index)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
@@ -71,5 +74,20 @@ final class LocalEditorAssetServerTests: XCTestCase {
         let wrong = URL(string: "http://localhost:\(index.port!)/wrong/index.html")!
         let (_, missingResponse) = try await session.data(from: wrong)
         XCTAssertEqual((missingResponse as? HTTPURLResponse)?.statusCode, 404)
+    }
+
+    func testStoppedServerCompletesStartupWithCancellation() async {
+        let server = LocalEditorAssetServer(root: directory)
+        server.stop()
+        let completed = expectation(description: "Stopped asset server reports startup cancellation")
+        completed.assertForOverFulfill = true
+        server.start { result in
+            switch result {
+            case .success: XCTFail("A stopped server must not start a listener")
+            case .failure(let error): XCTAssertEqual((error as? URLError)?.code, .cancelled)
+            }
+            completed.fulfill()
+        }
+        await fulfillment(of: [completed], timeout: 2)
     }
 }

@@ -2,7 +2,7 @@
 
 The iPad host mounts the desktop Markdown TipTap extensions and CodeMirror source editor. Markdown retains its original frontmatter, BOM, line endings and unchanged source blocks through the existing desktop source-splice serializer. TXT and JSON use source mode and are never interpreted as Markdown.
 
-Implemented controls include rich marks/headings/lists/tasks, table operations, quotations/code blocks, links, local images, math, Mermaid blocks, frontmatter editing, source view, find/replace and undo/redo. PDF/print uses the desktop print HTML and native paginated printing. DOCX conversion creates an independent library copy. Image paste is embedded as a data URL; no image host is contacted.
+Implemented controls include rich marks/headings/lists/tasks, table operations, quotations/code blocks, links, local images, math, Mermaid blocks, frontmatter editing, source view, find/replace and undo/redo. PDF/print uses the desktop print HTML and native paginated printing. DOCX conversion creates an independent library copy, preserving editable block equations and rasterizing rendered diagrams with the existing desktop exporter. Inline equations retain their LaTeX text, matching the desktop exporter. Image paste is embedded as a data URL; no image host is contacted.
 
 ```sh
 npm run typecheck -w @genoffice/ipad-markdown

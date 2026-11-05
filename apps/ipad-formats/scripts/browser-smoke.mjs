@@ -76,16 +76,22 @@ try {
       },
     }
   })
-  const open = async (kind) => {
+  const open = async (kind, bytes, readingState) => {
     await page.goto(address)
     await page.waitForFunction(() => window.nativeMessages.some((m) => m.type === 'ready'))
-    const base64 = (await readFile(new URL(`Templates/Blank.${kind}`, resources))).toString(
-      'base64',
-    )
+    const base64 = (
+      bytes ?? (await readFile(new URL(`Templates/Blank.${kind}`, resources)))
+    ).toString('base64')
     await page.evaluate(
-      ({ kind, base64 }) =>
-        window.everyOffice.openDocument({ name: `Test.${kind}`, kind, base64, language: 'en' }),
-      { kind, base64 },
+      ({ kind, base64, readingState }) =>
+        window.everyOffice.openDocument({
+          name: `Test.${kind}`,
+          kind,
+          base64,
+          language: 'en',
+          readingState,
+        }),
+      { kind, base64, readingState },
     )
     await page.waitForFunction(() => window.nativeMessages.some((m) => m.type === 'opened'))
   }
@@ -192,6 +198,64 @@ try {
   const bookPages = await exportPage()
   assert.match(bookPages[0].html, /EPUB edited on iPad/)
   await page.screenshot({ path: new URL('build/epub.png', root).pathname })
+  const twoChapter = await JSZip.loadAsync(
+    await readFile(new URL('Templates/Blank.epub', resources)),
+  )
+  twoChapter.file(
+    'EPUB/chapter.xhtml',
+    '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>First</title></head><body><h1>First</h1><p>shared first</p></body></html>',
+  )
+  twoChapter.file(
+    'EPUB/second.xhtml',
+    '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Second</title></head><body><h1>Second</h1><p>shared second</p></body></html>',
+  )
+  const opf = await twoChapter.file('EPUB/package.opf').async('string')
+  twoChapter.file(
+    'EPUB/package.opf',
+    opf
+      .replace(
+        '</manifest>',
+        '<item id="second" href="second.xhtml" media-type="application/xhtml+xml"/></manifest>',
+      )
+      .replace('</spine>', '<itemref idref="second"/></spine>'),
+  )
+  const bookBytes = await twoChapter.generateAsync({ type: 'nodebuffer' })
+  await open('epub', bookBytes, {
+    position: { spineIndex: 1, blockId: null },
+    viewPrefs: { fontScale: 1.25, lineHeight: 2, dark: true },
+  })
+  await page.frameLocator('iframe').locator('p[contenteditable="true"]').waitFor()
+  assert.equal(await page.locator('select[aria-label="Chapters"]').inputValue(), '1')
+  await page.getByRole('button', { name: 'Larger text', exact: true }).click()
+  await page.waitForFunction(() =>
+    window.nativeMessages.some((m) => m.type === 'readingState' && m.viewPrefs.fontScale === 1.5),
+  )
+  assert.equal(
+    (await page.evaluate(() => window.nativeMessages.filter((m) => m.type === 'changed'))).length,
+    0,
+  )
+  await page.getByRole('searchbox', { name: 'Find in book', exact: true }).fill('shared')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  await page.locator('.book-search-results button').first().waitFor()
+  assert.equal(await page.locator('.book-search-results button').count(), 2)
+  await page.locator('.book-search-results button').first().click()
+  await page.waitForFunction(
+    () => document.querySelector('select[aria-label="Chapters"]').value === '0',
+  )
+  await page.getByRole('textbox', { name: 'Replace with', exact: true }).fill('replaced')
+  await page.getByRole('button', { name: 'Replace all', exact: true }).click()
+  await page.getByText('Replaced 2', { exact: false }).waitFor()
+  let replacedBook = await JSZip.loadAsync(await save())
+  for (const chapter of ['chapter', 'second'])
+    assert.match(await replacedBook.file(`EPUB/${chapter}.xhtml`).async('string'), /replaced/)
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  replacedBook = await JSZip.loadAsync(await save())
+  for (const chapter of ['chapter', 'second'])
+    assert.match(await replacedBook.file(`EPUB/${chapter}.xhtml`).async('string'), /shared/)
+  await page.getByRole('button', { name: 'Redo', exact: true }).click()
+  replacedBook = await JSZip.loadAsync(await save())
+  for (const chapter of ['chapter', 'second'])
+    assert.match(await replacedBook.file(`EPUB/${chapter}.xhtml`).async('string'), /replaced/)
   await open('drawio')
   const reply = await page.evaluate(
     () =>
@@ -244,6 +308,105 @@ try {
   await exportFile('Export as Image (SVG)…', '.svg')
   await exportFile('Export as Image (PNG)…', '.png')
   await page.screenshot({ path: new URL('build/drawio.png', root).pathname })
+  const embedded = {}
+  for (const format of ['xmlsvg', 'xmlpng']) {
+    const result = await page.evaluate(
+      (format) =>
+        new Promise((resolve, reject) => {
+          const frame = document.querySelector('iframe')
+          const id = 'smoke-' + format
+          const timer = setTimeout(() => reject(new Error('Embedded export timeout')), 15000)
+          const receive = (event) => {
+            if (
+              event.source !== frame.contentWindow ||
+              event.origin !== location.origin ||
+              typeof event.data !== 'string'
+            )
+              return
+            const value = JSON.parse(event.data)
+            if (value.event !== 'export' || value.message?.ieumId !== id) return
+            clearTimeout(timer)
+            window.removeEventListener('message', receive)
+            resolve(value.data)
+          }
+          window.addEventListener('message', receive)
+          frame.contentWindow.postMessage(
+            JSON.stringify({
+              action: 'export',
+              format,
+              ieumId: id,
+              ...(format === 'xmlsvg' ? { asText: true, theme: 'auto' } : {}),
+            }),
+            location.origin,
+          )
+        }),
+      format,
+    )
+    embedded[format] =
+      format === 'xmlsvg'
+        ? Buffer.from(result, 'utf8')
+        : Buffer.from(result.slice(result.indexOf(',') + 1), 'base64')
+  }
+  for (const [format, bytes] of Object.entries(embedded)) {
+    const extension = format === 'xmlsvg' ? 'drawio.svg' : 'drawio.png'
+    await open(extension, bytes)
+    assert.deepEqual(await save(), bytes, 'Unchanged embedded diagram must keep original bytes')
+    const frame = page.frameLocator('iframe')
+    // Use the actual draw.io keyboard edit path to add a new shape to the model.
+    await frame.locator('.geDiagramContainer').click({ position: { x: 400, y: 250 } })
+    await page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const frame = document.querySelector('iframe')
+          const id = 'embedded-edit'
+          const timer = setTimeout(() => reject(new Error('Bridge timeout')), 15000)
+          const receive = (event) => {
+            if (
+              event.source !== frame.contentWindow ||
+              event.origin !== location.origin ||
+              event.data?.id !== id
+            )
+              return
+            clearTimeout(timer)
+            window.removeEventListener('message', receive)
+            if (event.data.ok) resolve()
+            else reject(new Error(event.data.error))
+          }
+          window.addEventListener('message', receive)
+          frame.contentWindow.postMessage(
+            {
+              ieum: 1,
+              kind: 'request',
+              id,
+              op: 'applyPrimitives',
+              args: {
+                primitives: [
+                  {
+                    kind: 'add_cell',
+                    page: 'page-1',
+                    cell: {
+                      id: 'embedded-shape',
+                      parent: '1',
+                      value: 'Embedded roundtrip',
+                      kind: 'vertex',
+                      style: 'rounded=1;',
+                      geometry: { x: 300, y: 200, width: 160, height: 60 },
+                    },
+                  },
+                ],
+              },
+            },
+            location.origin,
+          )
+        }),
+    )
+    const changed = await save()
+    assert.notDeepEqual(changed, bytes)
+    if (format === 'xmlsvg') assert.match(changed.toString(), /^<svg/)
+    else assert.deepEqual([...changed.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
+    await open(extension, changed)
+    assert.deepEqual(await save(), changed)
+  }
   assert.deepEqual(exceptions, [])
   assert.deepEqual(requests, [])
   console.log(

@@ -172,3 +172,27 @@ dialog button {
     max-height: 110px;
   }
 }
+.book-search-results {
+  flex: none;
+  max-height: 180px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.book-search-results:empty {
+  display: none;
+}
+.book-search-results button {
+  text-align: start;
+  border-radius: 0;
+  white-space: normal;
+  flex: none;
+}
+.search-bar input {
+  flex: 1;
+  min-width: 140px;
+}
+.toolbar output {
+  align-self: center;
+  padding: 0 8px;
+}

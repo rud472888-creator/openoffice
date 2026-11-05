@@ -4,10 +4,21 @@ import { resolve } from 'node:path'
 import JSZip from 'jszip'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Editor } from '@tiptap/core'
-import { buildBlankDocx, parseDocx, readSections } from '@genoffice/docx-engine'
+import {
+  buildBlankDocx,
+  parseDocx,
+  readSections,
+  generateTocFieldXml,
+} from '@genoffice/docx-engine'
 import { openRichDocument } from '../src/formats'
 import { buildOdt } from '../../../packages/odt-engine/tests/helpers/build-odt'
 import { convertLegacyDocToDocx } from '@genoffice/doc2docx'
+import { upsertNote, removeNote, insertOrUpdateToc } from '../src/reference-tools'
+import { queueStyleUpsert } from '../src/desktop-dialogs'
+import {
+  applyTableValue,
+  tableValueOf,
+} from '../../docs/src/renderer/components/TablePropertiesDialog'
 import { mountRichEditor } from '../src/rich-editor'
 import { tableModelToPmNode, type PmNode } from '../../docs/src/renderer/editor/convert'
 import { addCommentToRange } from '../../docs/src/renderer/editor/comments'
@@ -31,18 +42,19 @@ async function open(bytes?: Uint8Array, kind = 'docx') {
   const toolbar = document.createElement('div')
   document.body.append(toolbar, element)
   const errors: unknown[] = []
-  const editor = mountRichEditor({
+  const options = {
     element,
     toolbar,
-    language: 'en',
+    language: 'en' as const,
     model,
     changed() {},
-    error(error) {
+    error(error: unknown) {
       errors.push(error)
     },
-  })
+  }
+  const editor = mountRichEditor(options)
   editors.push(editor)
-  return { model, editor, errors, toolbar }
+  return { model, editor, errors, toolbar, options }
 }
 
 async function makeDocx(body: string) {
@@ -374,6 +386,135 @@ describe('shared desktop rich editor on iPad', () => {
       expect(model.legacy!.warnings).toEqual(reference.warnings)
     },
   )
+
+  it('inserts, edits and removes real footnotes/endnotes with shared note commands', async () => {
+    const { model, editor, options } = await open()
+    editor.commands.insertContent('Referenced text')
+    editor.commands.setTextSelection(5)
+    upsertNote(editor, options, 'footnote', 'Original note')
+    upsertNote(editor, options, 'endnote', 'Endnote body')
+    let reopened = await parseDocx(await model.save(json(editor)))
+    expect(reopened.footnotes[0].text).toBe('Original note')
+    expect(reopened.endnotes[0].text).toBe('Endnote body')
+    const id = model.options.footnotes![0].id
+    upsertNote(editor, options, 'footnote', 'Edited note\nSecond paragraph', id)
+    reopened = await parseDocx(await model.save(json(editor)))
+    expect(reopened.footnotes[0].text).toBe('Edited note\nSecond paragraph')
+    removeNote(editor, options, 'footnote', id)
+    reopened = await parseDocx(await model.save(json(editor)))
+    expect(reopened.footnotes).toHaveLength(0)
+    expect(reopened.endnotes).toHaveLength(1)
+  })
+
+  it('creates and updates actual TOC field XML while preserving other locked fields', async () => {
+    const other = '<w:p><w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p>'
+    const { model, editor, options } = await open(
+      await makeDocx(
+        '<w:p><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:r><w:t>Chapter One</w:t></w:r></w:p>' +
+          other,
+      ),
+    )
+    editor.commands.setTextSelection(1)
+    insertOrUpdateToc(editor, options, false)
+    let saved = await model.save(json(editor))
+    let reopened = await parseDocx(saved)
+    expect(reopened.internal.documentXml).toContain('TOC ')
+    expect(reopened.internal.documentXml).toContain(other)
+    insertOrUpdateToc(editor, options, true)
+    saved = await model.save(json(editor))
+    reopened = await parseDocx(saved)
+    expect(reopened.internal.documentXml.match(/TOC /g)).toHaveLength(1)
+    expect(reopened.internal.documentXml).toContain(other)
+  })
+
+  it('updates an original TOC without dropping its terminal explicit page break', async () => {
+    const fields = generateTocFieldXml([{ level: 1, text: 'Old entry', pageNo: 1 }])
+    fields[fields.length - 1] = fields[fields.length - 1].replace(
+      /<\/w:p>$/,
+      '<w:r><w:br w:type="page"/></w:r></w:p>',
+    )
+    const body =
+      fields.join('') +
+      '<w:p><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:r><w:t>Fresh heading</w:t></w:r></w:p>'
+    const { model, editor, options } = await open(await makeDocx(body))
+    insertOrUpdateToc(editor, options, true)
+    const reopened = await parseDocx(await model.save(json(editor)))
+    expect(reopened.internal.documentXml).toContain('Fresh heading')
+    expect(reopened.internal.documentXml).toContain('<w:br w:type="page"/>')
+    expect(reopened.internal.documentXml.match(/TOC /g)).toHaveLength(1)
+  })
+
+  it('writes queued styles using the original desktop style dialog/save APIs', async () => {
+    const { model, editor, options } = await open()
+    editor.commands.insertContent('Custom style text')
+    await queueStyleUpsert(
+      {
+        styleId: 'TabletStyle',
+        name: 'Tablet Style',
+        type: 'paragraph',
+        rPr: { bold: true, color: '3355AA', sizeHalfPoints: 30 },
+        pPr: { align: 'center' },
+      },
+      editor,
+      options,
+    )
+    const reopened = await parseDocx(await model.save(json(editor)))
+    expect(reopened.styles.get('TabletStyle')?.display).toMatchObject({
+      bold: true,
+      color: '3355AA',
+      sizeHalfPoints: 30,
+      align: 'center',
+    })
+    expect(reopened.blocks[0].styleId).toBe('TabletStyle')
+  })
+
+  it('uses desktop table properties and preserves its changed alignment on reopen', async () => {
+    const { model, editor } = await open()
+    editor.commands.insertContent([
+      tableModelToPmNode({ rows: [[{ paras: ['Cell'] }]], colWidthsPct: [100], widthPct: 100 }),
+      { type: 'docParagraph' },
+    ])
+    let at = 0
+    editor.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === 'Cell') at = position
+    })
+    editor.commands.setTextSelection(at)
+    const value = { ...tableValueOf(editor.getAttributes('docTable')), align: 'center' as const }
+    applyTableValue(editor, value, new Set(['align']), 600)
+    const reopened = await parseDocx(await model.save(json(editor)))
+    expect(reopened.blocks.find((block) => block.type === 'table')?.originalXml).toContain(
+      '<w:jc w:val="center"',
+    )
+  })
+
+  it('edits original picture geometry through the shared image patch without replacing media bytes', async () => {
+    const bytes = new Uint8Array(
+      await readFile(resolve(process.cwd(), '../../fixtures/generated/kitchen-sink.docx')),
+    )
+    const { model, editor } = await open(bytes)
+    let at = -1
+    editor.state.doc.forEach((node, position) => {
+      if (at < 0 && node.type.name === 'docProtected' && node.attrs.blockType === 'image')
+        at = position
+    })
+    expect(at).toBeGreaterThanOrEqual(0)
+    editor.commands.setNodeSelection(at)
+    editor.commands.updateAttributes('docProtected', {
+      imageWidthPx: 200,
+      imageHeightPx: 120,
+      imageRotDeg: 90,
+    })
+    const saved = await model.save(json(editor))
+    const reopened = await parseDocx(saved)
+    const image = reopened.blocks.find((block) => block.type === 'image')!
+    expect(image.imageWidthPx).toBeCloseTo(200)
+    expect(image.imageHeightPx).toBeCloseTo(120)
+    const before = await JSZip.loadAsync(bytes),
+      after = await JSZip.loadAsync(saved)
+    for (const [name, file] of Object.entries(before.files))
+      if (name.startsWith('word/media/') && !file.dir)
+        expect(await after.file(name)!.async('uint8array')).toEqual(await file.async('uint8array'))
+  })
 
   it('retains undo/redo history with the shared desktop extension', async () => {
     const { editor } = await open()

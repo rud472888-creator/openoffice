@@ -7,7 +7,8 @@
   "scripts": {
     "build": "vite build && node --import tsx scripts/create-template.ts",
     "build:desktop": "SHEETS_DESKTOP=1 vite build && node --import tsx scripts/create-template.ts",
-    "test": "node --import tsx tests/workbook.test.ts && node --import tsx tests/calculation.test.ts && node --import tsx tests/desktop.test.ts",
+    "test": "node --import tsx tests/workbook.test.ts && node --import tsx tests/calculation.test.ts && node --import tsx tests/desktop.test.ts && node --import tsx tests/import-workbook.test.ts",
+    "build:legacy": "bash scripts/build-legacy.sh",
     "test:browser": "node scripts/desktop-smoke.mjs",
     "typecheck": "tsc --noEmit"
   },

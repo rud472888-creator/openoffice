@@ -106,6 +106,52 @@ try {
     }
     await page.screenshot({ path: fileURLToPath(new URL(`markdown-${kind}.png`, out)) })
   }
+  await page.evaluate(
+    (base64) =>
+      window.everyOffice.openDocument({
+        name: 'Diagrams.md',
+        kind: 'md',
+        language: 'en',
+        base64,
+      }),
+    Buffer.from(
+      '# Diagrams\n\n```mermaid\ngraph TD\n A[Start] --> B[Finish]\n```\n\n$$\nx^2\n$$\n\nInline $y^2$\n',
+    ).toString('base64'),
+  )
+  await page.locator('[data-diagram="rendered"]').waitFor()
+  await page.evaluate(() => {
+    window.nativeMessages = []
+  })
+  await page.getByRole('button', { name: 'DOCX', exact: true }).click()
+  await page.waitForFunction(() =>
+    window.nativeMessages.some((message) => message.type === 'importCopy'),
+  )
+  const diagramCopy = await page.evaluate(() =>
+    window.nativeMessages.find((message) => message.type === 'importCopy'),
+  )
+  const diagramArchive = await JSZip.loadAsync(Buffer.from(diagramCopy.base64, 'base64'))
+  assert.ok(
+    Object.keys(diagramArchive.files).some(
+      (name) => name.startsWith('word/media/') && !diagramArchive.files[name].dir,
+    ),
+  )
+  const mathXML = await diagramArchive.file('word/document.xml').async('string')
+  assert.ok(mathXML.includes('m:oMath'))
+  assert.ok(mathXML.includes('$y^2$'))
+  await page.locator('.ipad-markdown-content').click()
+  await page.keyboard.press('Control+End')
+  await page.getByRole('button', { name: 'Footnote', exact: true }).click()
+  await page.keyboard.insertText('Footnote roundtrip')
+  await page.evaluate(() => {
+    window.nativeMessages = []
+  })
+  assert.equal(await page.evaluate(() => window.everyOffice.saveDocument()), true)
+  const footnote = await page.evaluate(() =>
+    window.nativeMessages.find((message) => message.type === 'save'),
+  )
+  assert.ok(
+    Buffer.from(footnote.base64, 'base64').toString('utf8').includes('[^1]: Footnote roundtrip'),
+  )
   assert.deepEqual(errors, [])
   assert.deepEqual(remote, [])
   await writeFile(
@@ -120,6 +166,7 @@ try {
           'Korean edit/save/reopen',
           'offline',
           'PDF pagination payload and DOCX export',
+          'Mermaid PNG and editable math DOCX output',
         ],
       },
       null,

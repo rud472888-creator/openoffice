@@ -217,6 +217,7 @@ async function saveDocument(): Promise<void> {
   save.disabled = true
   status.textContent = copy.saving
   try {
+    await canvas?.flushDrafts()
     const snapshot = await saving.save()
     if (current !== generation) return
     post({
@@ -249,6 +250,7 @@ document.addEventListener('keydown', (event) => {
 async function exportPages(type: 'exportPDF' | 'printPages'): Promise<void> {
   if (!canvas || !presentation) return
   try {
+    await canvas.flushDrafts()
     if (presentation.slides.length > 250) throw new Error('presentationTooLarge')
     const pages: Array<{ svg: string; width: number; height: number }> = []
     let total = 0

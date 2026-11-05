@@ -130,6 +130,8 @@ const notice = [
   ...['LICENSE-MIT', 'LICENSE-Apache-2.0', 'THIRD-PARTY-NOTICES.md'].map((name) =>
     readFileSync(join(root, 'apps/ipad-sheets/vendor/ironcalc-xlsx', name), 'utf8'),
   ),
+  '\nLegacy spreadsheet import: Calamine 0.37.0 and its locked Rust dependencies\n',
+  readFileSync(join(root, 'apps/ipad-sheets/vendor/legacy-import/THIRD-PARTY-NOTICES.txt'), 'utf8'),
   '\nBundled document fonts\n',
   'KaTeX webfonts — SIL OFL 1.1\nCopyright (c) 2009-2010, Design Science, Inc. (<www.mathjax.org>)\nCopyright (c) 2014-2018 Khan Academy (<www.khanacademy.org>),\nwith Reserved Font Names KaTeX_AMS, KaTeX_Caligraphic, KaTeX_Fraktur, KaTeX_Main, KaTeX_Math, KaTeX_SansSerif, KaTeX_Script, KaTeX_Size1, KaTeX_Size2, KaTeX_Size3, KaTeX_Size4, and KaTeX_Typewriter.\nThe SIL OFL 1.1 text follows with the other document fonts.',
   readFileSync(join(root, 'apps/docs/src/renderer/fonts/README.md'), 'utf8'),

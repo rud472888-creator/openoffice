@@ -98,3 +98,12 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+
+#document-check-host .doc-check {
+  position: fixed;
+  top: 64px;
+  max-height: calc(100% - 80px);
+}
+#document-check-host button {
+  min-height: 44px;
+}
