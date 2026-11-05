@@ -19,6 +19,8 @@ final class EveryOfficeUITests: XCTestCase {
         editor.tap()
         editor.typeText("A note saved on my iPad.")
         XCTAssertEqual(editor.value as? String, "A note saved on my iPad.")
+        XCTAssertTrue(app.staticTexts["Saved on this iPad"].waitForExistence(timeout: 30),
+            failureContext("The note must finish saving through the native bridge before relaunch.", app: app))
         app.terminate()
 
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
@@ -104,6 +106,8 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
         editor.tap()
         editor.typeText("Keep this original note.")
+        XCTAssertTrue(app.staticTexts["Saved on this iPad"].waitForExistence(timeout: 30),
+            failureContext("The note must finish saving before its file actions become available.", app: app))
         app.buttons["documentActions"].tap()
         app.buttons["Rename"].tap()
         let name = app.textFields["documentName"]
