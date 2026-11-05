@@ -18,7 +18,7 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 10), failureContext("Creating a note must open its editor.", app: app))
         editor.tap()
         editor.typeText("A note saved on my iPad.")
-        XCTAssertEqual(editor.value as? String, "A note saved on my iPad.")
+        assertSourceText("A note saved on my iPad.", in: editor, app: app)
         XCTAssertTrue(app.staticTexts["Saved on this iPad"].waitForExistence(timeout: 30),
             failureContext("The note must finish saving through the native bridge before relaunch.", app: app))
         app.terminate()
@@ -30,7 +30,7 @@ final class EveryOfficeUITests: XCTestCase {
         document.tap()
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
-        XCTAssertEqual(editor.value as? String, "A note saved on my iPad.")
+        assertSourceText("A note saved on my iPad.", in: editor, app: app)
     }
 
     @MainActor
@@ -93,6 +93,22 @@ final class EveryOfficeUITests: XCTestCase {
     }
 
     @MainActor
+    private func assertSourceText(_ expected: String, in editor: XCUIElement, app: XCUIApplication,
+                                  file: StaticString = #filePath, line: UInt = #line) {
+        // WebKit's contenteditable AX snapshot can lag input and include the
+        // CodeMirror block's two structural newlines. File bytes are checked
+        // independently by the real-bundle plain-text bridge test.
+        let matches = NSPredicate { _, _ in
+            guard let value = editor.value as? String else { return false }
+            return value == expected || value == expected + "\n\n"
+        }
+        let complete = XCTNSPredicateExpectation(predicate: matches, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [complete], timeout: 15), .completed,
+            failureContext("The entire source text must appear. Actual value: \(String(describing: editor.value))", app: app),
+            file: file, line: line)
+    }
+
+    @MainActor
     func testRenameDuplicateAndSwitchDocumentTabs() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -106,6 +122,7 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
         editor.tap()
         editor.typeText("Keep this original note.")
+        assertSourceText("Keep this original note.", in: editor, app: app)
         XCTAssertTrue(app.staticTexts["Saved on this iPad"].waitForExistence(timeout: 30),
             failureContext("The note must finish saving before its file actions become available.", app: app))
         app.buttons["documentActions"].tap()
@@ -123,12 +140,12 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
         let duplicateTab = app.buttons["tab-Project notes Copy.txt"]
         XCTAssertTrue(duplicateTab.waitForExistence(timeout: 10))
-        XCTAssertEqual(editor.value as? String, "Keep this original note.")
+        assertSourceText("Keep this original note.", in: editor, app: app)
         let originalTab = app.buttons["tab-Project notes.txt"]
         if !originalTab.isHittable { app.scrollViews["documentTabs"].swipeRight() }
         originalTab.tap()
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
-        XCTAssertEqual(editor.value as? String, "Keep this original note.")
+        assertSourceText("Keep this original note.", in: editor, app: app)
         attachScreenshot(app, name: "Renamed document and duplicate in tabs")
     }
 

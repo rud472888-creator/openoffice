@@ -50,11 +50,18 @@ final class BundledEditorBridgeTests: XCTestCase {
         try await exercise(resource: "MarkdownEditor", kind: "md", source: source, format: .text, unchanged: true)
     }
 
+    @MainActor
+    func testPlainTextInputSavesExactBytesWithoutAccessibilityNewlines() async throws {
+        let text = "A note saved on my iPad. 한글"
+        try await exercise(resource: "MarkdownEditor", kind: "txt", source: Data(), format: .text, typedText: text)
+        try await exercise(resource: "MarkdownEditor", kind: "txt", source: Data(text.utf8), format: .text, unchanged: true)
+    }
+
     private enum SavedFormat { case zip, hwp, html, drawio, text }
 
     @MainActor
     private func exercise(resource: String, kind: String, template: String? = nil, source: Data? = nil,
-                          format: SavedFormat, unchanged: Bool = false) async throws {
+                          format: SavedFormat, unchanged: Bool = false, typedText: String? = nil) async throws {
         let started = Date()
         let deadline = started.addingTimeInterval(60)
         func remaining() -> TimeInterval { max(0.1, deadline.timeIntervalSinceNow) }
@@ -81,7 +88,20 @@ final class BundledEditorBridgeTests: XCTestCase {
         await fulfillment(of: [harness.opened], timeout: remaining())
         XCTAssertTrue(harness.openedReceived, "\(resource)/\(kind) opened phase: \(harness.diagnostics)")
         guard harness.openedReceived else { return }
-        harness.call("await window.everyOffice.saveDocument(); return true;")
+        if let typedText {
+            harness.call("""
+                const content = document.querySelector('.cm-content');
+                if (!content) throw new Error('The plain-text editor is missing');
+                content.focus();
+                if (!document.execCommand('insertText', false, input)) throw new Error('WebKit rejected text input');
+                await new Promise(requestAnimationFrame);
+                await new Promise(requestAnimationFrame);
+                await window.everyOffice.saveDocument();
+                return true;
+                """, arguments: ["input": typedText])
+        } else {
+            harness.call("await window.everyOffice.saveDocument(); return true;")
+        }
         await fulfillment(of: [harness.saved], timeout: remaining())
         XCTAssertTrue(harness.errors.isEmpty, "\(resource)/\(kind): \(harness.diagnostics)")
         let saved = try XCTUnwrap(harness.savedData, "\(resource)/\(kind) save phase: \(harness.diagnostics)")
@@ -98,6 +118,7 @@ final class BundledEditorBridgeTests: XCTestCase {
         case .text: XCTAssertNotNil(String(data: saved, encoding: .utf8))
         }
         if unchanged { XCTAssertEqual(saved, bytes, "\(resource)/\(kind) guarantees original-byte no-op saves") }
+        if let typedText { XCTAssertEqual(saved, Data(typedText.utf8), "Plain-text save must contain exactly the input bytes") }
         XCTAssertLessThanOrEqual(Date().timeIntervalSince(started), 60, "The complete route contract must finish within 60 seconds")
     }
 }
