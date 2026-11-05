@@ -38,3 +38,22 @@ See [the evidence and PR assessment](ipad-upstream-review.md). The relevant upst
 The implementation environment is Linux. Browser and archive tests can run here, but SwiftUI/PDFKit compilation, native lifecycle behavior and Apple Pencil/device behavior require Xcode and an iPad simulator/device. A checked-in workflow or test is not evidence it passed. The delivery report must state separately which local checks passed and whether a remote simulator run completed.
 
 The icon is an original generated asset exported to the iOS 1024px app icon slot; see `apps/ipad/ICON.md`. Existing Apache-2.0 license and attribution remain applicable. This client is not an App Store release, and no distribution signing identity is included.
+
+## Verified simulator build
+
+The macOS/iPad Simulator workflow passed for commit
+[`4709947d4`](https://github.com/rud472888-creator/openoffice/commit/4709947d4)
+on 2026-11-05:
+[Every Office iPad run 41977295120](https://github.com/rud472888-creator/openoffice/actions/runs/41977295120).
+The successful job includes locked dependency installation, the 49 browser-adapter
+tests and bundles, native Xcode build and the configured unit/UI suites, followed
+by the `ipad-simulator-results` artifact upload. The UI suite exercises note
+creation/editing/persistence and bundled WKWebView DOCX editing across app relaunch.
+
+The earlier UI failures exposed hidden Home content at startup. The validated
+revision makes split-view visibility and compact-column navigation explicit and
+keeps the same create/edit/save/relaunch assertions. This is simulator evidence;
+physical iPad, Apple Pencil, external Files providers and App Store distribution
+have not been validated. `apps/ipad/VALIDATION.md` records the earlier Linux
+validation snapshot before the initial push; this section records the later
+successful native run.
