@@ -1,4 +1,5 @@
 import JSZip from 'jszip'
+import { FormulaEngine, unsupportedFunctions, type CalculatedCell } from './calculation'
 import { assertZipInflatesWithinLimits } from '../../../packages/zip-gate/src/index'
 import {
   child,
@@ -11,7 +12,7 @@ import {
   type XmlNode,
 } from './xml'
 
-export type ValueKind = 'text' | 'number' | 'boolean'
+export type ValueKind = 'text' | 'number' | 'boolean' | 'formula'
 export interface CellValue {
   value: string
   kind: ValueKind
@@ -219,7 +220,9 @@ export class Worksheet {
       formula: formula ? content(this.xml, formula) : undefined,
       readOnly:
         this.protected ||
-        !!formula ||
+        formula?.attrs.t === 'shared' ||
+        formula?.attrs.t === 'array' ||
+        formula?.attrs.t === 'dataTable' ||
         !!node?.attrs.cm ||
         !!node?.attrs.vm ||
         (type === 's' &&
@@ -262,13 +265,24 @@ export class Worksheet {
       throw new Error('Enter a valid number, or choose Text.')
     if (kind === 'boolean' && value !== '' && !/^(TRUE|FALSE)$/i.test(value))
       throw new Error('Enter TRUE or FALSE, or choose Text.')
-    if (previous.value === value && previous.kind === kind) return false
+    if (kind === 'formula' && !value.startsWith('='))
+      throw new Error('A formula must start with =.')
+    if (kind === 'formula' && value.length > 8192)
+      throw new Error('A formula cannot exceed 8192 characters.')
+    if (
+      kind === 'formula'
+        ? previous.formula === value.slice(1)
+        : previous.formula === undefined && previous.value === value && previous.kind === kind
+    )
+      return false
     const existing = this.cells.get(ref)
     const p = existing ? prefix(existing) : prefix(this.data)
     let payload = ''
     let type = ''
     if (value !== '') {
-      if (kind === 'text') {
+      if (kind === 'formula') {
+        payload = `<${p}f>${escapeXml(value.slice(1))}</${p}f>`
+      } else if (kind === 'text') {
         type = 'inlineStr'
         payload = `<${p}is><${p}t xml:space="preserve">${encodeSpreadsheet(value)}</${p}t></${p}is>`
       } else {
@@ -285,7 +299,7 @@ export class Worksheet {
         .replace(/\/?\s*>$/, `${type ? ` t="${type}"` : ''}>`)
       let inner = this.xml.slice(existing.openEnd, existing.closeStart)
       for (const node of existing.children
-        .filter((n) => n.local === 'v' || n.local === 'is')
+        .filter((n) => n.local === 'v' || n.local === 'is' || n.local === 'f')
         .reverse())
         inner =
           inner.slice(0, node.start - existing.openEnd) + inner.slice(node.end - existing.openEnd)
@@ -327,18 +341,52 @@ export class Worksheet {
     }
     return true
   }
+
+  applyCalculated(cells: CalculatedCell[]): void {
+    const patches: { start: number; end: number; xml: string }[] = []
+    for (const result of cells) {
+      const existing = this.cells.get(result.ref)
+      if (!existing || !child(existing, 'f')) continue
+      const p = prefix(existing)
+      const opening = this.xml
+        .slice(existing.start, existing.openEnd)
+        .replace(/\s+t\s*=\s*(?:"[^"]*"|'[^']*')/, '')
+        .replace(/\/?\s*>$/, `${result.type !== 'n' ? ` t="${result.type}"` : ''}>`)
+      let inner = this.xml.slice(existing.openEnd, existing.closeStart)
+      for (const node of existing.children
+        .filter((n) => n.local === 'v' || n.local === 'is')
+        .reverse()) {
+        inner =
+          inner.slice(0, node.start - existing.openEnd) + inner.slice(node.end - existing.openEnd)
+      }
+      const formula = child(existing, 'f')!
+      const insert = formula.end - existing.openEnd
+      const value = `<${p}v>${escapeXml(result.value)}</${p}v>`
+      inner = inner.slice(0, insert) + value + inner.slice(insert)
+      patches.push({
+        start: existing.start,
+        end: existing.end,
+        xml: opening + inner + `</${existing.name}>`,
+      })
+    }
+    for (const patch of patches.sort((a, b) => b.start - a.start))
+      this.xml = this.xml.slice(0, patch.start) + patch.xml + this.xml.slice(patch.end)
+    this.refresh()
+  }
 }
 
 export class Workbook {
   sheets: Sheet[] = []
   revision = 0
+  calculationIssues: string[] = []
+  private engine?: FormulaEngine
   private shared: string[] = []
   private richShared = new Set<number>()
   private workbookPath = ''
   private workbookXml = ''
   private worksheets = new Map<string, Worksheet>()
   private changed = new Set<string>()
-  private history: { path: string; xml: string }[] = []
+  private history: { xmls: Map<string, string>; engine?: Uint8Array; issues: string[] }[] = []
   private constructor(
     private zip: JSZip,
     private original: Uint8Array,
@@ -400,6 +448,17 @@ export class Workbook {
     }
     if (!book.sheets.some((sheet) => !sheet.hidden))
       throw new Error('The workbook has no visible worksheets.')
+    for (const sheet of book.sheets) await book.worksheet(sheet)
+    try {
+      book.engine = FormulaEngine.open(bytes)
+    } catch (error) {
+      book.calculationIssues = [
+        `IronCalc import: ${error instanceof Error ? error.message : String(error)}`,
+      ]
+    }
+    if (!book.engine && !book.calculationIssues.length)
+      book.calculationIssues = ['IronCalc calculation engine is not initialized.']
+    book.inspectCalculation()
     return book
   }
 
@@ -415,19 +474,131 @@ export class Workbook {
   }
 
   edit(sheet: Sheet, ref: string, value: string, kind: ValueKind): boolean {
-    const xml = this.worksheets.get(sheet.path)?.xml
-    const result = this.worksheets.get(sheet.path)?.setCell(ref, value, kind) ?? false
-    if (result) {
-      if (xml !== undefined) this.history.push({ path: sheet.path, xml })
+    if (kind === 'formula') {
+      if (!this.engine) throw new Error(this.calculationIssues.join('\n'))
+      const names = unsupportedFunctions(
+        value,
+        this.engine.model.getDefinedNameList().map((n) => n.name),
+      )
+      if (names.length) throw new Error(`Unsupported functions: ${names.join(', ')}`)
+    }
+    const previous = this.snapshot()
+    try {
+      const result = this.worksheets.get(sheet.path)?.setCell(ref, value, kind) ?? false
+      if (!result) return false
+      if (this.engine) {
+        const point = coordinates(ref)
+        this.engine.setInput(this.sheets.indexOf(sheet), point.row, point.column, value, kind)
+        this.calculate()
+      }
+      this.history.push(previous)
       while (
         this.history.length > 20 ||
-        this.history.reduce((total, item) => total + item.xml.length * 2, 0) > 20 * 1024 * 1024
+        this.history.reduce(
+          (total, item) =>
+            total +
+            [...item.xmls.values()].reduce((n, xml) => n + xml.length * 2, 0) +
+            (item.engine?.length ?? 0),
+          0,
+        ) >
+          20 * 1024 * 1024
       )
         this.history.shift()
-      this.changed.add(sheet.path)
+      for (const [path, worksheet] of this.worksheets)
+        if (worksheet.xml !== previous.xmls.get(path)) this.changed.add(path)
       this.revision++
+      return true
+    } catch (error) {
+      this.restore(previous)
+      throw error
     }
-    return result
+  }
+
+  private snapshot(): { xmls: Map<string, string>; engine?: Uint8Array; issues: string[] } {
+    return {
+      xmls: new Map([...this.worksheets].map(([path, sheet]) => [path, sheet.xml])),
+      engine: this.engine?.snapshot(),
+      issues: [...this.calculationIssues],
+    }
+  }
+
+  private restore(previous: {
+    xmls: Map<string, string>
+    engine?: Uint8Array
+    issues: string[]
+  }): void {
+    for (const [path, xml] of previous.xmls) {
+      const worksheet = this.worksheets.get(path)!
+      // Keep worksheet object identity so a visible grid never holds a discarded model.
+      Object.assign(worksheet, new Worksheet(xml, this.shared, this.richShared))
+    }
+    if (previous.engine) {
+      this.engine?.close()
+      this.engine = FormulaEngine.restore(previous.engine)
+    }
+    this.calculationIssues = previous.issues
+  }
+
+  private inspectCalculation(): boolean {
+    if (!this.engine) return false
+    const issues: string[] = []
+    const root = parseXml(this.workbookXml).children[0]
+    if (['1', 'true'].includes(child(root, 'workbookPr')?.attrs.date1904 ?? ''))
+      issues.push('date1904: IronCalc 0.9.1 cannot safely recalculate this date system.')
+    const names = this.engine.model.getDefinedNameList().map((n) => n.name)
+    for (const sheet of this.sheets) {
+      const worksheet = this.worksheets.get(sheet.path)!
+      for (const [ref, node] of worksheet.cells) {
+        const formula = child(node, 'f')
+        if (!formula) continue
+        const text = content(worksheet.xml, formula)
+        try {
+          const unsupported = unsupportedFunctions(text, names)
+          if (unsupported.length)
+            issues.push(`${sheet.name}!${ref}: unsupported functions ${unsupported.join(', ')}`)
+          if (/\[[^\]]+\][^!]*!/.test(text))
+            issues.push(`${sheet.name}!${ref}: external workbook reference is unavailable offline.`)
+        } catch {
+          issues.push(`${sheet.name}!${ref}: formula cannot be parsed by IronCalc 0.9.1.`)
+        }
+      }
+    }
+    this.calculationIssues = issues
+    return !issues.length
+  }
+
+  private calculate(): void {
+    if (!this.inspectCalculation()) return
+    const calculated = this.engine!.calculate()
+    const gaps: string[] = []
+    for (const [index, cells] of calculated)
+      for (const cell of cells) {
+        if (cell.array)
+          gaps.push(
+            `${this.sheets[index].name}!${cell.ref}: array/spill cache updates are not yet supported.`,
+          )
+        else if (cell.type === 'e' && /#N\/IMPL!|#ERROR!/.test(cell.value))
+          gaps.push(`${this.sheets[index].name}!${cell.ref}: ${cell.value} (${cell.formula ?? ''})`)
+      }
+    if (gaps.length) {
+      this.calculationIssues = gaps
+      return
+    }
+    for (const [index, cells] of calculated)
+      this.worksheets.get(this.sheets[index].path)!.applyCalculated(cells)
+  }
+
+  recalculateCaches(): boolean {
+    const before = new Map([...this.worksheets].map(([path, sheet]) => [path, sheet.xml]))
+    this.calculate()
+    let changed = false
+    for (const [path, sheet] of this.worksheets)
+      if (before.get(path) !== sheet.xml) {
+        this.changed.add(path)
+        changed = true
+      }
+    if (changed) this.revision++
+    return changed
   }
 
   get canUndo(): boolean {
@@ -437,10 +608,18 @@ export class Workbook {
   undo(): boolean {
     const previous = this.history.pop()
     if (!previous) return false
-    this.worksheets.set(previous.path, new Worksheet(previous.xml, this.shared, this.richShared))
-    this.changed.add(previous.path)
+    this.restore(previous)
+    for (const path of previous.xmls.keys()) this.changed.add(path)
     this.revision++
     return true
+  }
+
+  close(): void {
+    this.engine?.close()
+    this.engine = undefined
+  }
+  get calculationModel() {
+    return this.engine?.model
   }
 
   async save(): Promise<{ bytes: Uint8Array; revision: number }> {

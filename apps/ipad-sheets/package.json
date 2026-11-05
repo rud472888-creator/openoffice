@@ -6,12 +6,23 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "vite build && node --import tsx scripts/create-template.ts",
-    "test": "node --import tsx tests/workbook.test.ts",
+    "build:desktop": "SHEETS_DESKTOP=1 vite build && node --import tsx scripts/create-template.ts",
+    "test": "node --import tsx tests/workbook.test.ts && node --import tsx tests/calculation.test.ts && node --import tsx tests/desktop.test.ts",
+    "test:browser": "node scripts/desktop-smoke.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@genoffice/zip-gate": "*",
+    "@genoffice/ui": "*",
+    "@genoffice/i18n": "*",
+    "@genoffice/ai-provider": "*",
+    "@genoffice/xlsx-gateway": "*",
+    "@noble/hashes": "^2.2.0",
+    "buffer": "^6.0.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "fast-xml-parser": "^5.5.8",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "pako": "1.0.11"
   }
 }

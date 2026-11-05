@@ -6,6 +6,8 @@ struct PDFDocumentEditor: View {
     let library: DocumentLibrary
     let document: OfficeDocument
     @State private var state = PDFEditorState()
+    @State private var drawingPage: PDFPage?
+    @State private var tools: PDFToolsRequest?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,6 +25,34 @@ struct PDFDocumentEditor: View {
             if let pdf = PDFDocument(url: document.url), !pdf.isLocked { state.document = pdf }
         }
         .toolbar {
+            ToolbarItem(placement: .secondaryAction) {
+                Menu {
+                    Button("Pages") {
+                        if let data = state.document?.dataRepresentation(), let working = PDFDocument(data: data) { tools = PDFToolsRequest(kind: .pages, pdf: working, page: nil) }
+                    }
+                    .disabled(state.document?.allowsDocumentAssembly != true)
+                    Button("Search") { if let pdf = state.document { tools = PDFToolsRequest(kind: .search, pdf: pdf, page: nil) } }
+                    Button("Add note") {
+                        if let pdf = state.document, let page = state.view?.currentPage ?? pdf.page(at: 0) { tools = PDFToolsRequest(kind: .note, pdf: pdf, page: page) }
+                    }
+                    .disabled(state.document?.allowsCommenting != true)
+                    Button("Save") {
+                        do {
+                            guard let data = state.document?.dataRepresentation() else { throw LibraryError.invalidFile }
+                            try library.saveData(data, document: document)
+                        } catch { library.present(error) }
+                    }
+                    .disabled(state.document?.allowsFormFieldEntry != true && state.document?.allowsCommenting != true)
+                } label: { Label("PDF tools", systemImage: "slider.horizontal.3") }
+                .disabled(state.document == nil)
+            }
+            ToolbarItem(placement: .secondaryAction) {
+                Button { drawingPage = state.view?.currentPage ?? state.document?.page(at: 0) } label: {
+                    Label("Draw", systemImage: "pencil.tip.crop.circle")
+                }
+                .disabled(state.document?.allowsCommenting != true)
+            }
+            ToolbarItem(placement: .secondaryAction) { PrintDocumentButton(document: document).disabled(state.document?.allowsPrinting != true) }
             ToolbarItem(placement: .secondaryAction) {
                 Button {
                     guard let pdf = state.document, pdf.allowsCommenting,
@@ -50,6 +80,25 @@ struct PDFDocumentEditor: View {
                 .disabled(state.document?.allowsCommenting != true)
             }
         }
+        .sheet(isPresented: Binding(get: { drawingPage != nil }, set: { if !$0 { drawingPage = nil } })) {
+            if let page = drawingPage, let pdf = state.document {
+                PDFDrawingSheet(library: library, document: document, pdf: pdf, page: page)
+            }
+        }
+        .sheet(item: $tools) { request in
+            switch request.kind {
+            case .pages:
+                PDFPageManagerSheet(library: library, document: document, working: request.pdf) { state.document = $0 }
+            case .search:
+                PDFSearchSheet(pdf: request.pdf) { selection in
+                    state.view?.currentSelection = selection
+                    state.view?.highlightedSelections = [selection]
+                    state.view?.go(to: selection)
+                }
+            case .note:
+                if let page = request.page { PDFTextNoteSheet(library: library, document: document, pdf: request.pdf, page: page) }
+            }
+        }
     }
 }
 
@@ -72,5 +121,13 @@ private struct PDFCanvas: UIViewRepresentable {
         state.view = view
         return view
     }
-    func updateUIView(_ view: PDFView, context: Context) {}
+    func updateUIView(_ view: PDFView, context: Context) { if view.document !== document { view.document = document } }
+}
+
+private struct PDFToolsRequest: Identifiable {
+    enum Kind { case pages, search, note }
+    let id = UUID()
+    let kind: Kind
+    let pdf: PDFDocument
+    let page: PDFPage?
 }

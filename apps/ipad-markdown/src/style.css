@@ -1,0 +1,99 @@
+@import '../../../packages/ui/src/tokens.css';
+@import '../../markdown/src/renderer/styles.css';
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.ipad-note {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--text);
+  background: var(--surface);
+}
+.ipad-note-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px;
+  max-height: 30vh;
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.ipad-note-tools button,
+.ipad-note-tools select,
+.ipad-note-tools input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 42px;
+  padding: 8px;
+}
+.ipad-note-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+.ipad-note-body .tiptap {
+  min-height: 75vh;
+  outline: none;
+  max-width: 900px;
+  margin: auto;
+  overflow-wrap: anywhere;
+}
+.ipad-note-body img {
+  max-width: 100%;
+}
+.ipad-note-body table {
+  border-collapse: collapse;
+  max-width: 100%;
+}
+.ipad-note-body td,
+.ipad-note-body th {
+  border: 1px solid var(--border);
+  padding: 8px;
+}
+.ipad-note-body pre {
+  overflow-x: auto;
+}
+.ipad-source {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.ipad-source .cm-editor {
+  height: 100%;
+}
+.ipad-source .cm-content {
+  min-height: 65vh;
+}
+.ipad-note-error {
+  color: var(--danger);
+  padding: 8px;
+  margin: 0;
+}
+.ipad-note-dialog {
+  position: fixed;
+  inset: 20% 10% auto;
+  z-index: 100;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ipad-note-dialog textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  margin-bottom: 12px;
+  font: inherit;
+}

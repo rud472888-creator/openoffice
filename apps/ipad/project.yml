@@ -35,6 +35,15 @@ targets:
       - path: EveryOffice/Resources/PresentationEditor
         type: folder
         buildPhase: resources
+      - path: EveryOffice/Resources/HwpEditor
+        type: folder
+        buildPhase: resources
+      - path: EveryOffice/Resources/FormatsEditor
+        type: folder
+        buildPhase: resources
+      - path: EveryOffice/Resources/MarkdownEditor
+        type: folder
+        buildPhase: resources
       - path: EveryOffice/Resources/Templates
         type: folder
         buildPhase: resources
@@ -57,6 +66,11 @@ targets:
     info:
       path: EveryOffice/Info.plist
       properties:
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            localhost:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: false
         CFBundleLocalizations:
           - en
           - ko

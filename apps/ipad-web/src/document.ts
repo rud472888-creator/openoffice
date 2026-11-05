@@ -145,15 +145,7 @@ export class WordDocument {
   }
 
   static async open(bytes: Uint8Array, name: string): Promise<WordDocument> {
-    if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new Error('documentTooLarge')
-    await assertZipInflatesWithinLimits(bytes, DOCUMENT_ZIP_LIMITS)
-    assertArchivePaths(bytes)
-    const zip = await JSZip.loadAsync(bytes)
-    for (const file of Object.values(zip.files)) {
-      const originalName = (file as typeof file & { unsafeOriginalName?: string })
-        .unsafeOriginalName
-      if (originalName && originalName !== file.name) throw new Error('failed')
-    }
+    const zip = await inspectOfficeArchive(bytes)
     const signed = Object.keys(zip.files).some((path) =>
       path.toLowerCase().startsWith('_xmlsignatures/'),
     )
@@ -228,4 +220,17 @@ export function encodeBase64(bytes: Uint8Array): string {
   for (let i = 0; i < bytes.length; i += 32768)
     binary += String.fromCharCode(...bytes.subarray(i, i + 32768))
   return btoa(binary)
+}
+
+/** Shared mobile ZIP gate for DOCX and received ODT, before either parser runs. */
+export async function inspectOfficeArchive(bytes: Uint8Array): Promise<JSZip> {
+  if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new Error('documentTooLarge')
+  await assertZipInflatesWithinLimits(bytes, DOCUMENT_ZIP_LIMITS)
+  assertArchivePaths(bytes)
+  const zip = await JSZip.loadAsync(bytes)
+  for (const file of Object.values(zip.files)) {
+    const originalName = (file as typeof file & { unsafeOriginalName?: string }).unsafeOriginalName
+    if (originalName && originalName !== file.name) throw new Error('failed')
+  }
+  return zip
 }

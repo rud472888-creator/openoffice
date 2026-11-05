@@ -1,5 +1,8 @@
 import { PresentationDocument, decodeBase64, encodeBase64 } from './presentation'
 import { localeCopy, errorText } from './i18n'
+import { SlideWorkspace } from './workspace'
+import { visualCopy } from './visual-copy'
+import { renderSlideSvg } from './svg'
 import './styles.css'
 
 interface OpenRequest {
@@ -9,19 +12,22 @@ interface OpenRequest {
   language?: string
 }
 interface BridgeMessage {
-  type: 'ready' | 'save' | 'error' | 'changed'
+  type: 'ready' | 'opened' | 'save' | 'error' | 'changed' | 'exportPDF' | 'printPages'
   base64?: string
   message?: string
   name?: string
   kind?: 'pptx'
   revision?: number
   dirty?: boolean
+  pages?: Array<{ svg: string; width: number; height: number }>
 }
 declare global {
   interface Window {
     everyOffice: {
       openDocument(request: OpenRequest): Promise<void>
       saveDocument(): Promise<void>
+      exportPDF(): Promise<void>
+      printPages(): Promise<void>
     }
     webkit?: { messageHandlers?: { everyOffice?: { postMessage(message: BridgeMessage): void } } }
   }
@@ -30,6 +36,7 @@ declare global {
 let copy = localeCopy(navigator.language)
 let presentation: PresentationDocument | undefined
 let selected = 0
+let canvas: SlideWorkspace | undefined
 let generation = 0
 let busy = false
 const app = document.querySelector<HTMLDivElement>('#app')!
@@ -51,7 +58,7 @@ function post(message: BridgeMessage): void {
 
 const header = element('header', undefined, 'toolbar')
 const heading = element('div', undefined, 'document-heading')
-const name = element('h1', copy.textView)
+const name = element('h1', visualCopy(navigator.language).layout)
 const status = element('p', '', 'status')
 status.setAttribute('role', 'status')
 status.setAttribute('aria-live', 'polite')
@@ -61,8 +68,8 @@ save.type = 'button'
 save.disabled = true
 header.append(heading, save)
 const notice = element('div', undefined, 'notice')
-const mode = element('strong', copy.textView)
-const hint = element('p', copy.hint)
+const mode = element('strong', visualCopy(navigator.language).layout)
+const hint = element('p', visualCopy(navigator.language).hint)
 notice.append(mode, hint)
 const error = element('p', '', 'error')
 error.setAttribute('role', 'alert')
@@ -105,14 +112,6 @@ function slideTitle(index: number): string {
   )
 }
 
-function updateOutlineTitle(index: number): void {
-  const button = outlineList.querySelector<HTMLButtonElement>(`button[data-slide="${index}"]`)
-  if (!button) return
-  button.title = slideTitle(index)
-  const preview = button.querySelector('.preview')
-  if (preview) preview.textContent = slideTitle(index)
-}
-
 function selectSlide(index: number, focus = false): void {
   selected = index
   for (const button of outlineList.querySelectorAll<HTMLButtonElement>('button')) {
@@ -145,83 +144,28 @@ function renderOutline(): void {
 }
 
 function renderSlide(): void {
-  main.replaceChildren()
-  const slide = presentation?.slides[selected]
-  if (!slide) {
-    main.append(element('p', presentation ? copy.empty : copy.welcome, 'empty'))
+  if (presentation && canvas) {
+    void canvas.render(selected)
     return
   }
-  const top = element('div', undefined, 'slide-heading')
-  const title = element('h2', slideLabel(selected))
-  title.tabIndex = -1
-  const position = element('span', `${selected + 1} / ${presentation!.slides.length}`, 'position')
-  top.append(title, position)
-  main.append(top)
-  if (!slide.paragraphs.length) main.append(element('p', copy.empty, 'empty'))
-  slide.paragraphs.forEach((paragraph, paragraphIndex) => {
-    const block = element('section', undefined, 'paragraph')
-    const paragraphHeading = element('h3', `${copy.paragraph} ${paragraphIndex + 1}`)
-    block.append(paragraphHeading)
-    paragraph.runs.forEach((run, runIndex) => {
-      const id = `text-${selected}-${paragraphIndex}-${runIndex}`
-      const label = element('label', `${copy.run} ${runIndex + 1}`)
-      label.htmlFor = id
-      const textarea = element('textarea')
-      textarea.id = id
-      textarea.value = run.text
-      textarea.dir = 'auto'
-      textarea.rows = Math.max(
-        2,
-        Math.min(8, run.text.split('\n').length + Math.ceil(run.text.length / 75)),
-      )
-      textarea.readOnly = !run.editable
-      textarea.spellcheck = true
-      textarea.setAttribute(
-        'aria-label',
-        `${slideLabel(selected)}, ${copy.paragraph} ${paragraphIndex + 1}, ${copy.run} ${runIndex + 1}`,
-      )
-      if (!run.editable) {
-        const readOnlyNote = element('p', copy.readOnly, 'read-only')
-        readOnlyNote.id = `${id}-note`
-        textarea.setAttribute('aria-describedby', readOnlyNote.id)
-        block.append(readOnlyNote)
-      }
-      const slideIndex = selected
-      textarea.addEventListener('input', () => {
-        try {
-          if (!presentation?.setText(slideIndex, paragraphIndex, runIndex, textarea.value)) return
-          error.hidden = true
-          updateStatus()
-          updateOutlineTitle(slideIndex)
-          post({ type: 'changed', revision: presentation.revision })
-        } catch (reason) {
-          textarea.value = run.text
-          fail(reason)
-        }
-      })
-      block.append(label, textarea)
-    })
-    main.append(block)
-  })
-  const paging = element('div', undefined, 'paging')
-  for (const [label, index] of [
-    [copy.previous, selected - 1],
-    [copy.next, selected + 1],
-  ] as const) {
-    const button = element('button', label)
-    button.type = 'button'
-    button.disabled = index < 0 || index >= presentation!.slides.length
-    button.addEventListener('click', () => selectSlide(index, true))
-    paging.append(button)
-  }
-  main.append(paging)
+  main.replaceChildren(element('p', copy.welcome, 'empty'))
+}
+
+function changed(): void {
+  error.hidden = true
+  updateStatus()
+  renderOutline()
+  for (const button of outlineList.querySelectorAll<HTMLButtonElement>('button'))
+    button.setAttribute('aria-current', String(Number(button.dataset.slide) === selected))
+  if (presentation) post({ type: 'changed', revision: presentation.revision })
 }
 
 async function openDocument(request: OpenRequest): Promise<void> {
   const current = ++generation
   presentation = undefined
+  canvas = undefined
   selected = 0
-  name.textContent = copy.textView
+  name.textContent = visualCopy(navigator.language).layout
   renderOutline()
   renderSlide()
   try {
@@ -234,20 +178,30 @@ async function openDocument(request: OpenRequest): Promise<void> {
       throw new Error('invalidPresentation')
     copy = localeCopy(request.language ?? navigator.language)
     save.textContent = copy.save
-    mode.textContent = copy.textView
-    hint.textContent = copy.hint
+    mode.textContent = visualCopy(request.language ?? navigator.language).layout
+    hint.textContent = visualCopy(request.language ?? navigator.language).hint
     status.textContent = copy.loading
     error.hidden = true
     save.disabled = true
     const opened = await PresentationDocument.open(decodeBase64(request.base64), request.name)
     if (generation !== current) return
     presentation = opened
+    canvas = new SlideWorkspace(main, opened, {
+      language: request.language ?? navigator.language,
+      changed,
+      navigate(index) {
+        selected = index
+      },
+      error: fail,
+    })
     name.textContent = request.name
     name.title = request.name
     selected = 0
     renderOutline()
-    selectSlide(0)
+    const rendered = await canvas.render(0)
+    outlineList.querySelector('button')?.setAttribute('aria-current', 'true')
     updateStatus()
+    if (rendered) post({ type: 'opened', name: opened.name, revision: opened.revision })
   } catch (reason) {
     if (generation !== current) return
     updateStatus()
@@ -292,6 +246,35 @@ document.addEventListener('keydown', (event) => {
     void saveDocument()
   }
 })
-window.everyOffice = { openDocument, saveDocument }
+async function exportPages(type: 'exportPDF' | 'printPages'): Promise<void> {
+  if (!canvas || !presentation) return
+  try {
+    if (presentation.slides.length > 250) throw new Error('presentationTooLarge')
+    const pages: Array<{ svg: string; width: number; height: number }> = []
+    let total = 0
+    for (let i = 0; i < presentation.slides.length; i++) {
+      const { tree, size } = await canvas.visual.slide(i)
+      const width = size.cx / 12700,
+        height = size.cy / 12700
+      if (width > 4000 || height > 4000) throw new Error('presentationTooLarge')
+      const svg = new XMLSerializer().serializeToString(renderSlideSvg(tree))
+      const bytes = new TextEncoder().encode(svg).byteLength
+      total += bytes
+      if (bytes > 20 * 1024 * 1024 || total > 64 * 1024 * 1024)
+        throw new Error('presentationTooLarge')
+      pages.push({ svg, width, height })
+    }
+    post({ type, name: presentation.name, pages })
+  } catch (reason) {
+    fail(reason)
+  }
+}
+
+window.everyOffice = {
+  openDocument,
+  saveDocument,
+  exportPDF: () => exportPages('exportPDF'),
+  printPages: () => exportPages('printPages'),
+}
 renderSlide()
 post({ type: 'ready' })

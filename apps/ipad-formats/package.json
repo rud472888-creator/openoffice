@@ -1,0 +1,21 @@
+{
+  "name": "@genoffice/ipad-formats",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "vite build && node scripts/bundle.mjs && node --import tsx scripts/templates.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "node scripts/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "@genoffice/epub-engine": "*",
+    "@genoffice/xmind-engine": "*",
+    "@genoffice/i18n": "*",
+    "@genoffice/zip-gate": "*",
+    "mind-elixir": "5.15.1",
+    "jszip": "^3.10.1"
+  }
+}

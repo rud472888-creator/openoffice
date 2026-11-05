@@ -74,6 +74,11 @@ const ALLOW = [
     reason: 'the attribution notice the licence requires us to keep',
   },
   {
+    path: 'apps/ipad/EveryOffice/Resources/Notices/NOTICE',
+    reason:
+      'the bundled iPad attribution notice preserves the original licence and acknowledgements',
+  },
+  {
     line: /\bcopyright\b.*\b(?:mainfunc|genspark)\b/i,
     reason: 'a copyright notice inside a file stays as it was written',
   },

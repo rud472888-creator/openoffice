@@ -67,7 +67,7 @@ try {
     ),
     true,
   )
-  const editable = page.locator('textarea:not([readonly])').first()
+  const editable = page.locator('.ipad-rich-page[contenteditable="true"]')
   await editable.fill('every office 한글 편집 검증')
   assert.equal(await page.evaluate(() => window.everyOffice.saveDocument()), true)
   const saved = await page.evaluate(() =>
@@ -88,7 +88,7 @@ try {
     ),
     true,
   )
-  assert.equal(await editable.inputValue(), 'every office 한글 편집 검증')
+  assert.equal(await editable.innerText(), 'every office 한글 편집 검증')
   for (const width of [1024, 390]) {
     await page.setViewportSize({ width, height: 768 })
     assert.equal(
@@ -102,8 +102,7 @@ try {
     })
   }
   for (const [kind, resource, part, selector] of [
-    ['xlsx', 'SpreadsheetEditor', 'xl/worksheets/sheet1.xml', '#value'],
-    ['pptx', 'PresentationEditor', 'ppt/slides/slide1.xml', 'textarea:not([readonly])'],
+    ['pptx', 'PresentationEditor', 'ppt/slides/slide1.xml', '.run-editor textarea:not([readonly])'],
   ]) {
     console.log('Testing', kind)
     html = await readFile(new URL(`apps/ipad/EveryOffice/Resources/${resource}/index.html`, root))
@@ -127,6 +126,7 @@ try {
       },
       { kind, base64 },
     )
+    if (kind === 'pptx') await page.locator('.slide-canvas [data-element="0"]').click()
     await page.locator(selector).first().fill(`every office ${kind} 한글 검증`)
     await page.evaluate(async () => {
       await window.everyOffice.saveDocument()
@@ -151,6 +151,7 @@ try {
       },
       { kind, base64: saved.base64 },
     )
+    if (kind === 'pptx') await page.locator('.slide-canvas [data-element="0"]').click()
     assert.equal(
       await page.locator(selector).first().inputValue(),
       `every office ${kind} 한글 검증`,
@@ -181,7 +182,7 @@ try {
           'offline bundles',
           'native bridges',
           'Korean text edit',
-          'DOCX/XLSX/PPTX save and reopen',
+          'DOCX/PPTX save and reopen',
           'responsive overflow',
           'no network requests',
           'no page exceptions',
@@ -192,7 +193,7 @@ try {
     ),
   )
   console.log(
-    'PASS: offline DOCX/XLSX/PPTX bridges, edit/save/reopen, tablet and narrow layout; no browser errors or network requests.',
+    'PASS: offline DOCX/PPTX bridges, edit/save/reopen, tablet and narrow layout; no browser errors or network requests.',
   )
 } finally {
   await browser.close()

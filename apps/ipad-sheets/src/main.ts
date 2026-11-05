@@ -9,6 +9,11 @@ import {
   type ValueKind,
 } from './workbook'
 import { strings } from './strings'
+import { initializeCalculation } from './calculation'
+import wasmUrl from '../vendor/ironcalc-xlsx/wasm_bg.wasm?url'
+
+const wasmBinary = atob(wasmUrl.slice(wasmUrl.indexOf(',') + 1))
+initializeCalculation(Uint8Array.from(wasmBinary, (char) => char.charCodeAt(0)))
 
 interface BridgeDocument {
   name: string
@@ -25,6 +30,7 @@ declare global {
     everyOffice: {
       openDocument(document: BridgeDocument): Promise<void>
       saveDocument(): Promise<void>
+      didExport?(requestId: string, result: { completed: boolean; error?: string }): void
     }
     webkit?: { messageHandlers?: { everyOffice?: { postMessage(message: HostMessage): void } } }
   }
@@ -83,10 +89,11 @@ function commit(): boolean {
     if (edited) {
       renderGrid()
       changed()
+      showCalculation()
     }
     return true
-  } catch {
-    report(new Error(t[21]))
+  } catch (error) {
+    report(error instanceof Error ? error : new Error(t[21]))
     return false
   }
 }
@@ -107,7 +114,7 @@ function showSelection(focus = false): void {
   label.htmlFor = 'value'
   const value = element('textarea')
   value.id = 'value'
-  value.value = cell.value
+  value.value = cell.formula !== undefined ? `=${cell.formula}` : cell.value
   value.readOnly = cell.readOnly
   value.rows = 2
   value.spellcheck = false
@@ -126,10 +133,11 @@ function showSelection(focus = false): void {
     ['text', t[7]],
     ['number', t[8]],
     ['boolean', t[9]],
+    ['formula', 'Formula'],
   ]) {
     const option = element('option', title)
     option.value = type
-    option.selected = type === cell.kind
+    option.selected = type === (cell.formula !== undefined ? 'formula' : cell.kind)
     kind.append(option)
   }
   kind.disabled = cell.readOnly
@@ -165,6 +173,14 @@ function showSelection(focus = false): void {
   }
   document.querySelector<HTMLInputElement>('#address')!.value = selected
   if (focus) value.focus()
+}
+
+function showCalculation(): void {
+  const note = document.querySelector<HTMLElement>('.notice')
+  if (note && book)
+    note.textContent = book.calculationIssues.length
+      ? `Calculation incomplete: ${book.calculationIssues.join(' · ')}`
+      : 'IronCalc 0.9.1 calculates formulas offline. Changes update dependent cells on all sheets.'
 }
 
 function select(ref: string, focus = false): void {
@@ -336,11 +352,13 @@ function render(): void {
   app.append(toolbar, note, editor, grid, navigation, status)
   showSelection()
   renderGrid()
+  showCalculation()
 }
 
 window.everyOffice = {
   async openDocument(document): Promise<void> {
     const currentGeneration = ++generation
+    book?.close()
     book = undefined
     sheet = undefined
     worksheet = undefined

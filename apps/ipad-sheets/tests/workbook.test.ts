@@ -46,9 +46,8 @@ test('edits preserve styles, formula XML, extension data and all other ZIP entri
     value: '42',
     kind: 'number',
     formula: 'A1*2',
-    readOnly: true,
+    readOnly: false,
   })
-  assert.throws(() => book.edit(sheet, 'B1', '9', 'number'), /read-only/)
   book.edit(sheet, 'A1', 'Hello 한글 🌱 & <text>', 'text')
   const result = await book.save()
   const original = await JSZip.loadAsync(bytes)

@@ -6,27 +6,38 @@ struct DocumentDetailView: View {
     let document: OfficeDocument
     @State private var exporting = false
     @State private var exportFile: ExportedDocument?
+    @State private var renamingDocument: OfficeDocument?
 
     var body: some View {
-        Group {
-            if document.kind.isTextEditable {
+        VStack(spacing: 0) {
+            DocumentTabsView(library: library)
+            switch EditorRoute.route(for: document) {
+            case .text:
                 TextDocumentEditor(library: library, document: document)
-            } else if document.url.pathExtension.lowercased() == "docx" {
-                WebDocumentEditor(library: library, document: document, resource: "DocumentEditor")
-            } else if document.url.pathExtension.lowercased() == "xlsx" {
-                WebDocumentEditor(library: library, document: document, resource: "SpreadsheetEditor")
-            } else if document.url.pathExtension.lowercased() == "pptx" {
-                WebDocumentEditor(library: library, document: document, resource: "PresentationEditor")
-            } else if document.kind == .pdf {
+            case .web(let resource, let kind):
+                WebDocumentEditor(library: library, document: document, resource: resource, kind: kind)
+            case .pdf:
                 PDFDocumentEditor(library: library, document: document)
-            } else {
-                DocumentPreview(document: document)
+            case .preview:
+                DocumentPreview(document: document).id(document.url)
             }
         }
         .navigationTitle(document.filename)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Menu {
+                    Button { renamingDocument = document } label: { Label("Rename", systemImage: "pencil") }
+                    Button {
+                        do { library.selectedID = try library.duplicate(document).id } catch { library.present(error) }
+                    } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+                    ShareLink(item: document.url)
+                    Button {
+                        do { try library.closeTab(document) } catch { library.present(error) }
+                    } label: { Label("Close tab", systemImage: "xmark") }
+                } label: { Label("Document actions", systemImage: "ellipsis.circle") }
+                .disabled(library.savingDocumentIDs.contains(document.id))
+                .accessibilityIdentifier("documentActions")
                 Button {
                     do { try library.toggleFavorite(document) } catch { library.present(error) }
                 } label: {
@@ -45,6 +56,7 @@ struct DocumentDetailView: View {
             defaultFilename: document.filename) { result in
             if case .failure(let error) = result { library.present(error) }
         }
+        .sheet(item: $renamingDocument) { document in RenameDocumentSheet(library: library, document: document) }
     }
 }
 

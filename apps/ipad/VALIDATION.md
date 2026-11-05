@@ -1,19 +1,33 @@
 # Validation evidence
 
-Checked on Linux on 2026-11-05, before the initial GitHub branch push.
+Current implementation checkpoint: Linux, 2026-11-05. This records the tested scope, not complete desktop parity.
 
-- DOCX adapter: 20 tests passed.
-- XLSX adapter: 12 tests passed.
-- PPTX adapter: 17 tests passed.
-- All three adapter typechecks and production bundles passed.
-- Targeted ESLint passed for the new adapters and browser verification scripts.
-- Chromium integration check passed for all three formats: open a local fixture/template through the native message contract, edit Korean text, save, inspect the output archive, reopen the saved document, check 1024px and 390px layouts. No page exceptions or external network requests occurred.
-- Native localization catalog: 62 keys, each with 21 locales.
-- XcodeGen and Actions YAML parse; shell scripts pass syntax checks.
-- App icon: opaque 1024 × 1024 PNG. Bundled dependency notices include 11 packages.
+| Component               | Local automated evidence                                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rich DOCX/ODT/DOC       | 42 tests; typecheck, lint and production bundle; Chromium rich edit/save/reopen, ODT write-back, legacy DOC import-copy and actual desktop pagination/PDF payload           |
+| XLSX                    | 19 adapter tests and 4 desktop lifecycle-hook tests; desktop Univer grid with matched IronCalc WASM; Korean edit, new SUM formula, persisted numeric cache and reopen smoke |
+| Visual PPTX             | 30 tests; typecheck/build/lint; tablet/narrow browser gestures, geometry/table/text edit/save/reopen; independent repository XSD validation                                 |
+| HWP/HWPX                | 8 tests; typecheck/build; full offline studio Korean edit/save/reopen, memo create/edit, HWPX memo preservation, PDF page payload                                           |
+| HTML/XMind/EPUB/draw.io | 9 tests; typecheck/build/lint; actual editors, save/reopen, native export payloads, multipage final-paragraph visibility                                                    |
+| Markdown/TXT/JSON       | 6 tests; typecheck/build/lint; desktop TipTap/CodeMirror edit/save/reopen, BOM/CRLF/frontmatter preservation, PDF pagination payload and actual DOCX output                 |
 
-Chromium is not an iPad simulator and does not validate SwiftUI, WKWebView, PDFKit, file-provider access, device memory or Apple Pencil behavior. The browser test serves the exact offline HTML over a loopback HTTP server because this machine's Chromium policy blocks file URLs. The native app uses WKWebView file loading; its actual runtime checks are the macOS unit/UI tests.
+Browser checks use Chromium on Linux, including Korean text input, original package preservation and zero unexpected external HTTP requests. They do not establish WKWebView rendering, Korean iPad IME, Apple Pencil or physical-device memory behavior.
 
-The native target includes 9 unit tests and 2 UI tests, including a WKWebView DOCX edit/save/relaunch scenario. These have not run locally: Linux has no Xcode. `.github/workflows/ipad.yml` supplies the remote macOS/iPad simulator path. A workflow existing in Git does not establish its execution or success; check the Actions result before treating the native app as verified.
+The native app now serves immutable bundled editor assets through a tokenized loopback HTTP server; document bytes travel only through the WK bridge. New native tests cover routing, asset confinement, navigation, PDF rendering/pagination, annotations and library operations. UI tests exercise plain text and DOCX save/relaunch, tabs/rename/duplicate, and HWP canvas input/relaunch with OCR. New native tests require the next macOS CI run; Linux has no Xcode.
 
-Local browser screenshots and the machine-readable result are generated in `apps/ipad/build/browser-smoke/` (ignored). Reproduce with `node apps/ipad/scripts/browser-smoke.mjs` after building all web resources; set `CHROMIUM_PATH` if Chromium is installed elsewhere.
+The earlier native implementation passed [iPad Simulator CI](https://github.com/rud472888-creator/openoffice/actions/runs/41977295120) at source `4709947d4`. That result does **not** validate the expanded editor implementation in this checkpoint. `.github/workflows/ipad.yml` rebuilds all six web workspaces, then builds and tests the native app on macOS/iPad Simulator. Check its result at the new source revision before treating current native behavior as verified.
+
+Bundled notices cover 282 detected JavaScript dependencies, the HWP engine/studio, IronCalc, local fonts and the complete verified draw.io inventory. Sources and licensing caveats are recorded in `licenses/README.md` and `licenses/sources.json`.
+
+Reproduce web checks with `bash apps/ipad/scripts/verify-web.sh`. Browser smoke commands:
+
+```sh
+node apps/ipad/scripts/browser-smoke.mjs
+npm run test:browser --prefix apps/ipad-sheets
+npm run test:browser --prefix apps/ipad-slides
+node apps/ipad/scripts/hwp-smoke.mjs
+npm run test:browser --prefix apps/ipad-formats
+node apps/ipad/scripts/markdown-smoke.mjs
+```
+
+Set `CHROMIUM_PATH` when needed. Local screenshots and results are generated under ignored build/output directories. Detailed remaining feature and device gates are in [the parity checklist](../../docs/ipad-feature-parity.md). Claude/Codex execution and the project terminal are explicitly excluded by the user.

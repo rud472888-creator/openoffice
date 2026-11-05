@@ -1,2 +1,6 @@
 import { defineConfig } from 'vitest/config'
-export default defineConfig({ test: { include: ['tests/**/*.test.ts'], testTimeout: 20000 } })
+import { portablePptxXml } from './scripts/portable-pptx'
+export default defineConfig({
+  plugins: [portablePptxXml()],
+  test: { include: ['tests/**/*.test.ts'], testTimeout: 20000 },
+})

@@ -3,3 +3,9 @@ DerivedData/
 build/
 *.xcuserstate
 EveryOffice/Info.plist
+EveryOffice/Resources/HwpEditor/
+EveryOffice/Resources/FormatsEditor/
+EveryOffice/Resources/MarkdownEditor/
+EveryOffice/Resources/DocumentEditor/
+EveryOffice/Resources/SpreadsheetEditor/
+EveryOffice/Resources/PresentationEditor/

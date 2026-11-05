@@ -72,7 +72,7 @@ function escapeText(value: string): string {
 }
 
 /** Scan original XML offsets; never serialize slide shapes, formatting, or relationships. */
-function scanXml(
+export function scanXml(
   xml: string,
   visit: (tag: XmlTag, ancestors: XmlTag[], contentEnd: number) => void,
 ): void {
@@ -134,7 +134,7 @@ function textPart(bytes: Uint8Array | undefined): string {
 }
 
 // Same safe relationship resolution policy as the desktop PPTX package reader.
-function resolveTarget(base: string, target: string): string {
+export function resolveTarget(base: string, target: string): string {
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(target)) return ''
   let normalized: string
   try {
@@ -150,12 +150,12 @@ function resolveTarget(base: string, target: string): string {
   return parts.join('/')
 }
 
-function relsPath(path: string): string {
+export function relsPath(path: string): string {
   const pieces = path.split('/')
   return [...pieces.slice(0, -1), '_rels', `${pieces.at(-1)}.rels`].join('/')
 }
 
-function relationships(
+export function relationships(
   xml: string,
 ): Map<string, { type: string; target: string; external: boolean }> {
   const result = new Map<string, { type: string; target: string; external: boolean }>()
@@ -171,7 +171,7 @@ function relationships(
 }
 
 /** JSZip merges duplicate names; reject ambiguous packages before that information is lost. */
-function assertUniqueEntries(bytes: Uint8Array): number {
+function assertUniqueEntries(bytes: Uint8Array): { total: number; sizes: Map<string, number> } {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   let end = bytes.length - 22
   while (end >= 0 && view.getUint32(end, true) !== 0x06054b50) end--
@@ -180,13 +180,16 @@ function assertUniqueEntries(bytes: Uint8Array): number {
   let offset = view.getUint32(end + 16, true)
   const names = new Set<string>()
   let total = 0
+  const sizes = new Map<string, number>()
   for (let i = 0; i < count; i++) {
     const nameLength = view.getUint16(offset + 28, true)
     const raw = bytes.subarray(offset + 46, offset + 46 + nameLength)
     const key = Array.from(raw, (byte) => String.fromCharCode(byte)).join('')
     if (names.has(key)) throw new Error('invalidPresentation')
     names.add(key)
-    total += view.getUint32(offset + 24, true)
+    const size = view.getUint32(offset + 24, true)
+    total += size
+    sizes.set(new TextDecoder().decode(raw), size)
     const local = view.getUint32(offset + 42, true)
     if (view.getUint16(local + 6, true) & 1) throw new Error('encryptedPresentation')
     const localLength = view.getUint16(local + 26, true)
@@ -198,7 +201,7 @@ function assertUniqueEntries(bytes: Uint8Array): number {
     offset +=
       46 + nameLength + view.getUint16(offset + 30, true) + view.getUint16(offset + 32, true)
   }
-  return total
+  return { total, sizes }
 }
 
 function parseSlide(path: string, xml: string, readOnly: boolean): PresentationSlide {
@@ -240,6 +243,8 @@ function parseSlide(path: string, xml: string, readOnly: boolean): PresentationS
 
 export class PresentationDocument {
   revision = 0
+  private overrides = new Map<string, Uint8Array>()
+  private originalSlides = new Map<string, PresentationSlide>()
   private constructor(
     readonly name: string,
     readonly originalBytes: Uint8Array,
@@ -247,7 +252,11 @@ export class PresentationDocument {
     readonly slides: PresentationSlide[],
     readonly readOnly: boolean,
     private readonly totalInflatedBytes: number,
-  ) {}
+    private readonly originalSizes: Map<string, number>,
+    readonly presentationPath: string,
+  ) {
+    this.originalSlides = new Map(slides.map((slide) => [slide.path, slide]))
+  }
 
   static async open(bytes: Uint8Array, name: string): Promise<PresentationDocument> {
     if (bytes.byteLength > MAX_PRESENTATION_BYTES) throw new Error('presentationTooLarge')
@@ -265,7 +274,7 @@ export class PresentationDocument {
         throw new Error('presentationTooLarge', { cause: error })
       throw new Error('invalidPresentation', { cause: error })
     }
-    const totalInflatedBytes = assertUniqueEntries(bytes)
+    const { total: totalInflatedBytes, sizes } = assertUniqueEntries(bytes)
     const archive = await JSZip.loadAsync(bytes, { checkCRC32: true })
     for (const file of Object.values(archive.files)) {
       if (
@@ -311,13 +320,117 @@ export class PresentationDocument {
       if (runCount > 20000) throw new Error('presentationTooLarge')
       slides.push(slide)
     }
-    return new PresentationDocument(name, bytes, archive, slides, readOnly, totalInflatedBytes)
+    return new PresentationDocument(
+      name,
+      bytes,
+      archive,
+      slides,
+      readOnly,
+      totalInflatedBytes,
+      sizes,
+      presentationPath,
+    )
   }
 
   get dirty(): boolean {
-    return this.slides.some((slide) =>
-      slide.paragraphs.some((p) => p.runs.some((r) => r.text !== r.originalText)),
+    return (
+      this.overrides.size > 0 ||
+      this.slides.some((slide) =>
+        slide.paragraphs.some((p) => p.runs.some((r) => r.text !== r.originalText)),
+      )
     )
+  }
+
+  currentSlideXml(index: number): string {
+    const slide = this.slides[index]
+    if (!slide) throw new Error('invalidPresentation')
+    let xml = slide.originalXml
+    const changed = slide.paragraphs.flatMap((p) => p.runs).filter((r) => r.text !== r.originalText)
+    for (const run of changed.sort((a, b) => b.start - a.start)) {
+      if (!run.editable) throw new Error('readOnly')
+      xml = xml.slice(0, run.start) + escapeText(run.text) + xml.slice(run.end)
+    }
+    return xml
+  }
+
+  async readPart(path: string): Promise<Uint8Array | undefined> {
+    return this.overrides.get(path) ?? this.archive.file(path)?.async('uint8array')
+  }
+
+  async readXml(path: string): Promise<string | undefined> {
+    const bytes = await this.readPart(path)
+    return bytes ? textPart(bytes) : undefined
+  }
+
+  hasPart(path: string): boolean {
+    return this.overrides.has(path) || !!this.archive.file(path)
+  }
+
+  partPaths(): string[] {
+    return [
+      ...new Set([
+        ...Object.keys(this.archive.files).filter((path) => !this.archive.files[path].dir),
+        ...this.overrides.keys(),
+      ]),
+    ]
+  }
+
+  snapshot(): PresentationSnapshot {
+    const parts = new Map(this.overrides)
+    this.slides.forEach((slide, index) => {
+      const xml = this.currentSlideXml(index)
+      if (xml !== slide.originalXml) parts.set(slide.path, encoder.encode(xml))
+    })
+    return { parts, slidePaths: this.slides.map((slide) => slide.path) }
+  }
+
+  /** One validated, reversible package transaction; original archive buffers are never mutated. */
+  editPackage(updates: Map<string, string | Uint8Array>, slidePaths?: string[]): void {
+    const state = this.snapshot()
+    for (const [path, value] of updates)
+      state.parts.set(path, typeof value === 'string' ? encoder.encode(value) : value.slice())
+    if (slidePaths) state.slidePaths = [...slidePaths]
+    this.restore(state)
+  }
+
+  restore(state: PresentationSnapshot): void {
+    if (this.readOnly) throw new Error('readOnly')
+    if (
+      !state.slidePaths.length ||
+      state.slidePaths.length > 1000 ||
+      new Set(state.slidePaths).size !== state.slidePaths.length
+    )
+      throw new Error('invalidPresentation')
+    let total = this.totalInflatedBytes
+    for (const [path, bytes] of state.parts) {
+      if (
+        !path ||
+        path.split('/').some((piece) => piece === '..') ||
+        bytes.byteLength > PRESENTATION_ZIP_LIMITS.maxPartBytes
+      )
+        throw new Error('presentationTooLarge')
+      total += bytes.byteLength - (this.originalSizes.get(path) ?? 0)
+      if (path.endsWith('.xml') || path.endsWith('.rels')) scanXml(textPart(bytes), () => {})
+    }
+    if (
+      total > PRESENTATION_ZIP_LIMITS.maxTotalBytes ||
+      new Set([...Object.keys(this.archive.files), ...state.parts.keys()]).size >
+        PRESENTATION_ZIP_LIMITS.maxParts
+    )
+      throw new Error('presentationTooLarge')
+    let runs = 0
+    const slides = state.slidePaths.map((path) => {
+      const original = this.originalSlides.get(path)
+      const xml = state.parts.get(path)
+      if (!xml && !original) throw new Error('invalidPresentation')
+      const slide = parseSlide(path, xml ? textPart(xml) : original!.originalXml, this.readOnly)
+      runs += slide.paragraphs.reduce((sum, p) => sum + p.runs.length, 0)
+      return slide
+    })
+    if (runs > 20000) throw new Error('presentationTooLarge')
+    this.overrides = new Map(state.parts)
+    this.slides.splice(0, this.slides.length, ...slides)
+    this.revision++
   }
 
   setText(slide: number, paragraph: number, run: number, value: string): boolean {
@@ -346,25 +459,21 @@ export class PresentationDocument {
     const revision = this.revision
     if (!this.dirty) return { bytes: this.originalBytes, revision }
     if (this.readOnly) throw new Error('readOnly')
-    const replacements = new Map<string, Uint8Array>()
+    const replacements = new Map(this.snapshot().parts)
     let totalBytes = this.totalInflatedBytes
-    for (const slide of this.slides) {
+    for (const [index, slide] of this.slides.entries()) {
       const changed = slide.paragraphs
         .flatMap((p) => p.runs)
         .filter((r) => r.text !== r.originalText)
       if (!changed.length) continue
-      let xml = slide.originalXml
-      for (const run of changed.sort((a, b) => b.start - a.start)) {
-        if (!run.editable) throw new Error('readOnly')
-        xml = xml.slice(0, run.start) + escapeText(run.text) + xml.slice(run.end)
-      }
+      const xml = this.currentSlideXml(index)
       const bytes = encoder.encode(xml)
       if (bytes.byteLength > 8 * 1024 * 1024) throw new Error('presentationTooLarge')
-      totalBytes += bytes.byteLength - encoder.encode(slide.originalXml).byteLength
-      if (totalBytes > PRESENTATION_ZIP_LIMITS.maxTotalBytes)
-        throw new Error('presentationTooLarge')
       replacements.set(slide.path, bytes)
     }
+    for (const [path, bytes] of replacements)
+      totalBytes += bytes.byteLength - (this.originalSizes.get(path) ?? 0)
+    if (totalBytes > PRESENTATION_ZIP_LIMITS.maxTotalBytes) throw new Error('presentationTooLarge')
     const output = new JSZip()
     for (const file of Object.values(this.archive.files)) {
       output.file(
@@ -380,6 +489,8 @@ export class PresentationDocument {
         },
       )
     }
+    for (const [path, bytes] of replacements)
+      if (!this.archive.file(path)) output.file(path, bytes, { createFolders: false })
     const bytes = await output.generateAsync({
       type: 'uint8array',
       compression: 'DEFLATE',
@@ -389,6 +500,11 @@ export class PresentationDocument {
     if (bytes.byteLength > MAX_PRESENTATION_BYTES) throw new Error('presentationTooLarge')
     return { bytes, revision }
   }
+}
+
+export interface PresentationSnapshot {
+  parts: Map<string, Uint8Array>
+  slidePaths: string[]
 }
 
 export function decodeBase64(value: string): Uint8Array {

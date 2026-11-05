@@ -5,16 +5,27 @@ import Observation
 @Observable
 final class DocumentLibrary {
     private(set) var documents: [OfficeDocument] = []
-    var selectedID: UUID?
+    var selectedID: UUID? {
+        didSet {
+            if let selectedID, documents.contains(where: { $0.id == selectedID }), !openDocumentIDs.contains(selectedID) {
+                openDocumentIDs.append(selectedID)
+            }
+        }
+    }
+    private(set) var openDocumentIDs: [UUID] = []
     var errorMessage: String?
     var savingDocumentIDs: Set<UUID> = []
+    var readyDocumentIDs: Set<UUID> = []
+    var preparingPDF = false
+    var generatedPDF: GeneratedPDFPresentation?
+    @ObservationIgnored var generatedFileCompletion: ((Bool) -> Void)?
     private(set) var textDrafts: [UUID: String] = [:]
     @ObservationIgnored var pendingSaveActions: [UUID: () -> Void] = [:]
     private let directory: URL
     private let fileManager: FileManager
     private var favorites: Set<UUID> = []
-    static let maximumImportBytes: Int64 = 100 * 1_024 * 1_024
-    static let maximumTextBytes = 10 * 1_024 * 1_024
+    nonisolated static let maximumImportBytes: Int64 = 100 * 1_024 * 1_024
+    nonisolated static let maximumTextBytes = 10 * 1_024 * 1_024
 
     init(directory: URL? = nil, fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -37,9 +48,68 @@ final class DocumentLibrary {
 
     private var favoritesURL: URL { directory.appendingPathComponent("favorites.json") }
     var selectedDocument: OfficeDocument? { documents.first { $0.id == selectedID } }
+    var openDocuments: [OfficeDocument] { openDocumentIDs.compactMap { id in documents.first { $0.id == id } } }
 
     func present(_ error: Error) { errorMessage = error.localizedDescription }
     func retryPendingSaves() { for action in Array(pendingSaveActions.values) { action() } }
+
+    func closeTab(_ document: OfficeDocument) throws {
+        guard !savingDocumentIDs.contains(document.id) else { throw LibraryError.pendingSave }
+        guard let index = openDocumentIDs.firstIndex(of: document.id) else { return }
+        openDocumentIDs.remove(at: index)
+        if selectedID == document.id {
+            selectedID = openDocumentIDs.isEmpty ? nil : openDocumentIDs[min(index, openDocumentIDs.count - 1)]
+        }
+    }
+
+    @discardableResult
+    func rename(_ document: OfficeDocument, to proposedName: String) throws -> OfficeDocument {
+        try requireSaved(document)
+        let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !name.hasPrefix("."), !name.hasSuffix("."),
+              !name.contains("/"), !name.contains("\\"), !name.contains(":"),
+              !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              name.utf8.count <= 180 else { throw LibraryError.invalidName }
+        let ext = document.url.pathExtension
+        let filename = ext.isEmpty ? name : "\(name).\(ext)"
+        let destination = document.url.deletingLastPathComponent().appendingPathComponent(filename)
+        if destination != document.url { try fileManager.moveItem(at: document.url, to: destination) }
+        try reload()
+        guard let renamed = documents.first(where: { $0.id == document.id }) else { throw LibraryError.missingDocument }
+        return renamed
+    }
+
+    @discardableResult
+    func duplicate(_ document: OfficeDocument) throws -> OfficeDocument {
+        try requireSaved(document)
+        let base = "\(document.name) \(String(localized: "Copy"))"
+        let ext = document.url.pathExtension
+        var count = 1
+        var name = base
+        func filename() -> String { ext.isEmpty ? name : "\(name).\(ext)" }
+        while documents.contains(where: { $0.filename == filename() }) {
+            count += 1
+            name = "\(base) \(count)"
+        }
+        return try insert(filename: filename()) { destination in
+            try fileManager.copyItem(at: document.url, to: destination)
+        }
+    }
+
+    private func requireSaved(_ document: OfficeDocument) throws {
+        guard !savingDocumentIDs.contains(document.id) else { throw LibraryError.pendingSave }
+        guard documents.contains(where: { $0.id == document.id && $0.url == document.url }) else { throw LibraryError.missingDocument }
+    }
+
+    @discardableResult
+    func importCopy(data: Data, name: String, kind: String) throws -> OfficeDocument {
+        let allowed = ["docx", "odt", "xlsx", "pptx", "hwp", "hwpx", "pdf", "html", "md", "txt"]
+        guard allowed.contains(kind.lowercased()), URL(fileURLWithPath: name).pathExtension.lowercased() == kind.lowercased(),
+              !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains("\\"), !name.contains(":"),
+              !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }), name.utf8.count <= 240 else { throw LibraryError.invalidName }
+        guard Int64(data.count) <= Self.maximumImportBytes else { throw LibraryError.tooLarge }
+        return try insert(filename: name) { destination in try data.write(to: destination, options: .atomic) }
+    }
 
     func reload() throws {
         let folders = try fileManager.contentsOfDirectory(at: directory,
@@ -101,7 +171,7 @@ final class DocumentLibrary {
 
     @discardableResult
     func createOffice(extension ext: String) throws -> OfficeDocument {
-        guard ["docx", "xlsx", "pptx"].contains(ext),
+        guard ["docx", "xlsx", "pptx", "hwp", "hwpx", "html", "xmind", "epub", "drawio"].contains(ext),
               let templates = Bundle.main.resourceURL?.appendingPathComponent("Templates"),
               fileManager.fileExists(atPath: templates.appendingPathComponent("Blank.\(ext)").path) else {
             throw LibraryError.missingDocument
@@ -181,7 +251,7 @@ final class DocumentLibrary {
         guard !savingDocumentIDs.contains(document.id) else { throw LibraryError.pendingSave }
         guard documents.contains(where: { $0.id == document.id && $0.url == document.url }) else { throw LibraryError.missingDocument }
         try fileManager.removeItem(at: document.url.deletingLastPathComponent())
-        if selectedID == document.id { selectedID = nil }
+        try closeTab(document)
         try reload()
     }
 }

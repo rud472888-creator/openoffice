@@ -8,6 +8,7 @@ struct LibraryView: View {
     @State private var importing = false
     @State private var showingAbout = false
     @State private var pendingDeletion: OfficeDocument?
+    @State private var renamingDocument: OfficeDocument?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .content
 
@@ -57,6 +58,9 @@ struct LibraryView: View {
                             NewDocumentCard(title: "New document", symbol: "doc.text", color: OfficeTheme.documentBlue, identifier: "newDocument") { createOffice("docx") }
                             NewDocumentCard(title: "New workbook", symbol: "tablecells", color: OfficeTheme.sheetGreen, identifier: "newWorkbook") { createOffice("xlsx") }
                             NewDocumentCard(title: "New presentation", symbol: "rectangle.on.rectangle", color: OfficeTheme.slideOrange, identifier: "newPresentation") { createOffice("pptx") }
+                            ForEach(additionalTemplates) { template in
+                                NewDocumentCard(title: template.title, symbol: template.symbol, color: OfficeTheme.documentBlue, identifier: template.identifier) { createOffice(template.ext) }
+                            }
                             NewDocumentCard(title: "New note", symbol: "doc.plaintext", color: OfficeTheme.documentBlue, identifier: "newNote") { create(markdown: false) }
                             NewDocumentCard(title: "New Markdown", symbol: "text.alignleft", color: OfficeTheme.ink, identifier: "newMarkdown") { create(markdown: true) }
                             NewDocumentCard(title: "Import", symbol: "folder", color: OfficeTheme.sheetGreen, identifier: "importCard") { importing = true }
@@ -82,6 +86,12 @@ struct LibraryView: View {
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("document-\(document.filename)")
                                 .contextMenu {
+                                    Button { renamingDocument = document } label: { Label("Rename", systemImage: "pencil") }
+                                        .disabled(library.savingDocumentIDs.contains(document.id))
+                                    Button {
+                                        perform { library.selectedID = try library.duplicate(document).id }
+                                    } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+                                    .disabled(library.savingDocumentIDs.contains(document.id))
                                     Button { perform { try library.toggleFavorite(document) } } label: {
                                         Label(LocalizedStringKey(document.isFavorite ? "Remove favorite" : "Add favorite"), systemImage: document.isFavorite ? "star.slash" : "star")
                                     }
@@ -124,7 +134,7 @@ struct LibraryView: View {
         .navigationSplitViewStyle(.balanced)
         .onChange(of: library.selectedID, initial: true) { _, selectedID in
             preferredCompactColumn = selectedID == nil ? .content : .detail
-            columnVisibility = selectedID == nil ? .all : .doubleColumn
+            columnVisibility = selectedID == nil ? .all : .detailOnly
         }
         .onChange(of: section) { _, _ in showLibrary() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
@@ -143,11 +153,38 @@ struct LibraryView: View {
             }
         } message: { Text("The file you imported from Files will stay unchanged.") }
         .sheet(isPresented: $showingAbout) { AboutView() }
+        .sheet(item: $renamingDocument) { document in RenameDocumentSheet(library: library, document: document) }
+        .sheet(item: Binding(get: { library.generatedPDF }, set: { value in
+            if value == nil { library.generatedFileCompletion?(false); library.generatedFileCompletion = nil }
+            library.generatedPDF = value
+        })) { presentation in
+            GeneratedPDFPresenter(presentation: presentation) { completed in
+                library.generatedFileCompletion?(completed)
+                library.generatedFileCompletion = nil
+                library.generatedPDF = nil
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if library.preparingPDF { ProgressView("Preparing PDF…").padding().background(.regularMaterial, in: Capsule()).padding() }
+        }
         .foregroundStyle(OfficeTheme.ink)
     }
 
     private func create(markdown: Bool) {
         perform { library.selectedID = try library.create(markdown: markdown).id }
+    }
+
+    private var additionalTemplates: [AdditionalTemplate] {
+        let candidates = [
+            AdditionalTemplate(ext: "hwp", title: "New HWP document", symbol: "doc.text", identifier: "newHwp"),
+            AdditionalTemplate(ext: "html", title: "New HTML", symbol: "chevron.left.forwardslash.chevron.right", identifier: "newHtml"),
+            AdditionalTemplate(ext: "xmind", title: "New mind map", symbol: "point.3.connected.trianglepath.dotted", identifier: "newMindMap"),
+            AdditionalTemplate(ext: "drawio", title: "New diagram", symbol: "square.on.square.dashed", identifier: "newDiagram"),
+            AdditionalTemplate(ext: "epub", title: "New EPUB", symbol: "book", identifier: "newEpub")
+        ]
+        return candidates.filter { template in
+            Bundle.main.resourceURL.map { FileManager.default.fileExists(atPath: $0.appendingPathComponent("Templates/Blank.\(template.ext)").path) } == true
+        }
     }
 
     private func showLibrary() {
@@ -166,6 +203,14 @@ struct LibraryView: View {
 }
 
 private enum LibrarySection: Hashable { case recent, favorites }
+
+private struct AdditionalTemplate: Identifiable {
+    let ext: String
+    let title: LocalizedStringKey
+    let symbol: String
+    let identifier: String
+    var id: String { ext }
+}
 
 private struct NewDocumentCard: View {
     let title: LocalizedStringKey

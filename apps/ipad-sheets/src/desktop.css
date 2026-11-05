@@ -1,0 +1,58 @@
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  min-width: 0;
+  min-height: 0;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+button,
+[role='button'],
+input,
+select {
+  touch-action: manipulation;
+}
+.ai-panel,
+.ai-panel-side-button {
+  display: none;
+}
+.ribbon-group:has(.ai-entry) {
+  display: none;
+}
+#ipad-compatibility {
+  position: fixed;
+  bottom: 0;
+  inset-inline: 0;
+  z-index: 10000;
+  max-height: 64px;
+  overflow: auto;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-subtle);
+  border-top: 1px solid var(--border);
+}
+.ipad-has-issues .app-shell {
+  padding-bottom: 64px;
+}
+.ribbon-tabs {
+  overflow-x: auto;
+}
+@media (pointer: coarse) {
+  .excel-header button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .ribbon-tab {
+    min-height: 44px;
+  }
+  .ribbon-small-btn {
+    min-height: 44px;
+  }
+}

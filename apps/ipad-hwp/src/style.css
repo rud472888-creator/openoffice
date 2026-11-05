@@ -1,0 +1,100 @@
+@import '../../../packages/ui/src/tokens.css';
+html,
+body,
+#editor {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+#editor {
+  flex: 1;
+  min-height: 0;
+}
+#host-tools {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  overflow-x: auto;
+  flex: none;
+}
+button,
+input,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+button {
+  min-height: 44px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.memo-panel {
+  position: fixed;
+  top: 56px;
+  bottom: 0;
+  right: 0;
+  width: min(350px, 90vw);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 5;
+  padding: 12px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+.memo-panel article {
+  margin-block: 12px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.memo-panel p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+dialog {
+  width: min(480px, 85vw);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+dialog input,
+dialog textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-block: 12px;
+}
+dialog textarea {
+  min-height: 150px;
+}
+body {
+  color: var(--text);
+  background: var(--surface);
+  font: 16px system-ui;
+}
+#editor iframe {
+  border: none;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+#error {
+  position: fixed;
+  z-index: 10;
+  inset: auto 12px 12px;
+  margin: 0;
+  padding: 16px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}

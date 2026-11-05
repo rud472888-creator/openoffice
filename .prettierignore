@@ -10,6 +10,10 @@ coverage/
 package-lock.json
 apps/*/build/
 apps/shell/build/THIRD-PARTY-NOTICES.txt
+apps/ipad/EveryOffice/Resources/*Editor/
+apps/ipad/EveryOffice/Resources/Notices/NOTICE
+apps/ipad-sheets/vendor/
+apps/ipad/licenses/*.txt
 
 # Local-only acceptance drivers are intentionally outside CI.
 scripts/drivers/driver.*.mjs

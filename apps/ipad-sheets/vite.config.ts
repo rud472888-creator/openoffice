@@ -5,6 +5,22 @@ import { Script } from 'node:vm'
 
 export default defineConfig({
   base: './',
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    'process.platform': JSON.stringify('darwin'),
+  },
+  resolve: {
+    alias: [
+      {
+        find: '@ipad/desktop-app',
+        replacement: fileURLToPath(new URL('../sheets/src/renderer/App.tsx', import.meta.url)),
+      },
+      {
+        find: /^node:(?:crypto|fs(?:\/promises)?|path|os)$/,
+        replacement: fileURLToPath(new URL('src/browser-node.ts', import.meta.url)),
+      },
+    ],
+  },
   plugins: [
     {
       name: 'offline-editor-html',
@@ -21,8 +37,12 @@ export default defineConfig({
             '<script type="module" src="./src/main.ts"></script>',
             () => `<script>${script.code.replace(/<\/script/gi, '<\\/script')}</script>`,
           )
-          .replace('</head>', () => `<style>${css?.type === 'asset' ? css.source : ''}</style></head>`)
+          .replace(
+            '</head>',
+            () => `<style>${css?.type === 'asset' ? css.source : ''}</style></head>`,
+          )
           .replace("script-src 'self'", "script-src 'unsafe-inline'")
+          .replace("script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'wasm-unsafe-eval'")
           .replace("style-src 'self'", "style-src 'unsafe-inline'")
         const embeddedScript = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1]
         if (!embeddedScript) throw new Error('Missing inline editor script.')
@@ -41,10 +61,16 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     lib: {
-      entry: fileURLToPath(new URL('src/main.ts', import.meta.url)),
+      entry: fileURLToPath(
+        new URL(
+          process.env.SHEETS_DESKTOP === '0' ? 'src/main.ts' : 'src/desktop-main.tsx',
+          import.meta.url,
+        ),
+      ),
       name: 'SpreadsheetEditor',
       formats: ['iife'],
       fileName: 'editor',
     },
+    rollupOptions: { output: { inlineDynamicImports: true } },
   },
 })

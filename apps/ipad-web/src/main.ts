@@ -1,5 +1,16 @@
-import { decodeBase64, encodeBase64, WordDocument } from './document'
+import { decodeBase64, encodeBase64 } from './document'
+import { openRichDocument } from './formats'
+import type { RichWordDocument } from './rich-document'
+import { completeNativeExport } from './print-preview'
+import { mountRichEditor } from './rich-editor'
 import { stringsFor } from './strings'
+import type { Editor } from '@tiptap/core'
+import { t } from '../../docs/src/renderer/i18n/locale'
+import type { PmNode } from '../../docs/src/renderer/editor/convert'
+import '@genoffice/ui/tokens.css'
+import '../../docs/src/renderer/styles.css'
+import '../../docs/src/renderer/fonts/fonts.css'
+import { adoptEmbeddedFonts } from '../../docs/src/renderer/embedded-fonts'
 import './styles.css'
 
 interface OpenRequest {
@@ -19,11 +30,13 @@ declare global {
     everyOffice: {
       openDocument(request: OpenRequest): Promise<boolean>
       saveDocument(): Promise<boolean>
+      didExport(id: string, result: { completed: boolean; error?: string }): void
     }
   }
 }
 
-let documentModel: WordDocument | undefined
+let documentModel: RichWordDocument | undefined
+let editor: Editor | undefined
 let revision = 0
 let opening = 0
 let strings = stringsFor(navigator.language)
@@ -31,13 +44,19 @@ const root = document.getElementById('app')!
 const notice = document.createElement('p')
 notice.className = 'notice'
 notice.setAttribute('role', 'status')
-const page = document.createElement('main')
-page.className = 'page'
+const viewport = document.createElement('main')
+viewport.className = 'editor-viewport editor-scroll'
+const toolbar = document.createElement('div')
+toolbar.className = 'touch-ribbon'
+const conversionNotice = document.createElement('p')
+conversionNotice.className = 'notice'
+const title = document.createElement('h1')
+title.className = 'document-name'
 const errorNotice = document.createElement('p')
 errorNotice.className = 'error'
 errorNotice.setAttribute('role', 'alert')
 errorNotice.hidden = true
-root.append(notice, errorNotice, page)
+root.append(toolbar, notice, errorNotice, conversionNotice, title, viewport)
 notice.textContent = strings.text.empty
 
 function send(message: NativeMessage): void {
@@ -54,118 +73,70 @@ function showError(error: unknown, fallback: 'failed' | 'cannotSave'): void {
   send({ type: 'error', message: localized, revision })
 }
 
-function changed(): void {
-  revision += 1
-  errorNotice.hidden = true
-  send({ type: 'changed', dirty: true, revision })
-}
-
-function autoSize(area: HTMLTextAreaElement): void {
-  area.style.height = 'auto'
-  area.style.height = `${Math.max(44, area.scrollHeight)}px`
-}
-
-function textEditor(
-  text: string,
-  editable: boolean,
-  label: string,
-  update: (value: string) => void,
-): HTMLTextAreaElement {
-  const area = document.createElement('textarea')
-  area.value = text
-  area.readOnly = !editable
-  area.rows = 1
-  area.dir = 'auto'
-  area.spellcheck = true
-  area.setAttribute('aria-label', label)
-  area.addEventListener('input', () => {
-    try {
-      update(area.value)
-      changed()
-    } catch (error) {
-      area.value = text
-      showError(error, 'cannotSave')
-    }
-    text = area.value
-    autoSize(area)
-  })
-  requestAnimationFrame(() => autoSize(area))
-  return area
-}
-
-function render(): void {
-  const model = documentModel!
-  page.replaceChildren()
-  notice.textContent = model.signed
-    ? strings.text.protectedBlock
-    : model.readOnly
-      ? strings.text.readOnly
-      : strings.text.mode
-  const title = document.createElement('h1')
-  title.textContent = model.name
-  page.append(title)
-  model.parts.forEach((part, partIndex) => {
-    const section = document.createElement('section')
-    section.className = part.table ? 'table-text' : part.heading ? 'heading-text' : 'paragraph-text'
-    if (part.table) {
-      const label = document.createElement('p')
-      label.className = 'part-label'
-      label.textContent = strings.text.table
-      section.append(label)
-    }
-    if (!part.paragraphs.length || part.paragraphs.some((p) => !p.editable)) {
-      const label = document.createElement('p')
-      label.className = 'part-label'
-      label.textContent = strings.text.protectedBlock
-      section.append(label)
-    }
-    part.paragraphs.forEach((paragraph, index) => {
-      section.append(
-        textEditor(
-          paragraph.text,
-          paragraph.editable,
-          `${strings.text.paragraph} ${partIndex + 1}.${index + 1}`,
-          (text) => model.setText(partIndex, index, text),
-        ),
-      )
-    })
-    page.append(section)
-  })
-  if (!model.readOnly) {
-    const added = document.createElement('section')
-    const add = document.createElement('button')
-    add.type = 'button'
-    add.textContent = strings.text.add
-    add.addEventListener('click', () => {
-      const index = model.appendParagraph()
-      const area = textEditor('', true, `${strings.text.paragraph} +${index + 1}`, (text) =>
-        model.setAddedText(index, text),
-      )
-      added.append(area)
-      changed()
-      area.focus()
-    })
-    page.append(added, add)
-  }
-}
-
 window.everyOffice = {
+  didExport: completeNativeExport,
   async openDocument(request) {
     const generation = ++opening
+    editor?.destroy()
+    editor = undefined
     documentModel = undefined
     revision = 0
     strings = stringsFor(request.language ?? navigator.language)
     document.documentElement.lang = strings.lang
     document.documentElement.dir = ['ar', 'he'].includes(strings.lang) ? 'rtl' : 'ltr'
-    page.replaceChildren()
+    viewport.replaceChildren()
+    toolbar.replaceChildren()
     errorNotice.hidden = true
     notice.textContent = strings.text.loading
+    title.textContent = request.name
+    conversionNotice.textContent = ''
     try {
-      if (request.kind !== 'docx') throw new Error('unsupported')
-      const model = await WordDocument.open(decodeBase64(request.base64), request.name)
+      const model = await openRichDocument(decodeBase64(request.base64), request.name, request.kind)
+      const source = model.source
+      if (generation !== opening) return false
+      await adoptEmbeddedFonts(source.parsed.embeddedFonts)
       if (generation !== opening) return false
       documentModel = model
-      render()
+      const host = document.createElement('div')
+      host.className = 'rich-editor-host fit-width'
+      viewport.append(host)
+      editor = mountRichEditor({
+        element: host,
+        toolbar,
+        language: strings.lang,
+        model,
+        changed() {
+          revision += 1
+          errorNotice.hidden = true
+          send({ type: 'changed', dirty: true, revision })
+        },
+        error(error) {
+          showError(error, 'cannotSave')
+        },
+      })
+      if (model.legacy) {
+        const copy = document.createElement('button')
+        copy.type = 'button'
+        copy.textContent = `${t('ribbonSaveAs')} .docx`
+        copy.addEventListener('click', () =>
+          send({
+            type: 'importCopy',
+            name: request.name.replace(/\.doc$/i, '') + '.docx',
+            base64: encodeBase64(model.legacy!.docx),
+            kind: 'docx',
+          }),
+        )
+        toolbar.prepend(copy)
+        if (model.legacy.warnings.length)
+          conversionNotice.textContent = model.legacy.warnings.join(' ')
+      }
+      notice.textContent = model.legacy
+        ? `${t('ribbonSaveAs')} .docx`
+        : source.signed || model.odt?.signed
+          ? strings.text.protectedBlock
+          : model.readOnly
+            ? strings.text.readOnly
+            : strings.text.mode
       send({ type: 'opened', name: request.name, revision: 0, readOnly: model.readOnly })
       return true
     } catch (error) {
@@ -179,14 +150,20 @@ window.everyOffice = {
     const model = documentModel
     const saveRevision = revision
     const generation = opening
-    if (!model) {
+    if (!model || !editor) {
       showError(new Error('cannotSave'), 'cannotSave')
       return false
     }
     try {
-      const bytes = await model.save()
+      const content = editor.getJSON() as PmNode
+      const bytes = await model.save(content)
       if (generation !== opening) return false
-      send({ type: 'save', name: model.name, base64: encodeBase64(bytes), revision: saveRevision })
+      send({
+        type: 'save',
+        name: model.source.name,
+        base64: encodeBase64(bytes),
+        revision: saveRevision,
+      })
       return true
     } catch (error) {
       showError(error, 'cannotSave')
@@ -195,5 +172,4 @@ window.everyOffice = {
   },
 }
 
-window.addEventListener('resize', () => page.querySelectorAll('textarea').forEach(autoSize))
 send({ type: 'ready' })

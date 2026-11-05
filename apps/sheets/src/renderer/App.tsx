@@ -1,4 +1,5 @@
 import { focusWorksheet } from './sheet-focus'
+import { notifyEmbeddedRuntime, runEmbeddedSave } from './embedded-runtime'
 import {
   activateFormulaClosure,
   applyDefinedNames,
@@ -2203,6 +2204,7 @@ export function App({
     installVeryHiddenSheetGuard(runtime, lazyWorkbookRef)
     loadSnapshotIntoUniver(runtime, initialSnapshot, 'new-workbook', 'Untitled')
     univerRef.current = runtime
+    notifyEmbeddedRuntime(window, runtime)
     // The hidden spare can have a canvas/editor before Univer finishes booting.
     // Expose its lifecycle readiness only to explicitly enabled e2e drivers.
     if ((window as unknown as Record<string, unknown>).__genofficeDebugHooks === true) {
@@ -3649,6 +3651,7 @@ export function App({
     )
     return () => {
       unsubscribeMenu()
+      notifyEmbeddedRuntime(window, null)
       unsubscribeCloseSave()
       offUniverLanguage()
       offThemeChanged?.()
@@ -5043,7 +5046,14 @@ export function App({
         finishOpening()
         return
       }
-      if (!(await openLazyWorkbook(selected, { onInitialRangeLoaded: finishOpening }))) {
+      if (
+        !(await openLazyWorkbook(selected, {
+          onInitialRangeLoaded: () => {
+            finishOpening()
+            window.everyOfficeDesktopWorkbookReady?.(selected.sessionId)
+          },
+        }))
+      ) {
         finishOpening()
         setMessage(t('appOpenFailed'))
         return
@@ -5067,7 +5077,9 @@ export function App({
     if (mode === 'recovery' && gate.busy) return { ok: false }
     return gate.run(async () => {
       if (!(await commitActiveEditor())) return { ok: false }
-      return handleSaveImpl(saveContext(), mode, quiet, explicitTarget)
+      return runEmbeddedSave(window, mode, () =>
+        handleSaveImpl(saveContext(), mode, quiet, explicitTarget),
+      )
     })
   }
   closeSaveRef.current = async () => {

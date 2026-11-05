@@ -5,15 +5,17 @@ struct WebDocumentEditor: View {
     let library: DocumentLibrary
     let document: OfficeDocument
     let resource: String
+    var kind: String? = nil
     @State private var saveRequest = 0
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 0) {
-            OfficeWebView(library: library, document: document, resource: resource, saveRequest: saveRequest)
-            Text(LocalizedStringKey(library.savingDocumentIDs.contains(document.id) ? "Saving…" : "Saved on this iPad"))
+            OfficeWebView(library: library, document: document, resource: resource, kind: kind, saveRequest: saveRequest)
+            Text(LocalizedStringKey(library.savingDocumentIDs.contains(document.id) ? "Saving…" : library.readyDocumentIDs.contains(document.id) ? "Saved on this iPad" : "Opening…"))
                 .font(.caption).foregroundStyle(OfficeTheme.secondary)
                 .padding(12).frame(maxWidth: .infinity).background(OfficeTheme.subtle)
+                .accessibilityIdentifier(library.readyDocumentIDs.contains(document.id) && !library.savingDocumentIDs.contains(document.id) ? "webEditorReady" : "webEditorBusy")
         }
         .toolbar {
             ToolbarItem(placement: .secondaryAction) {
@@ -29,11 +31,12 @@ private struct OfficeWebView: UIViewRepresentable {
     let library: DocumentLibrary
     let document: OfficeDocument
     let resource: String
+    let kind: String?
     let saveRequest: Int
 
     func makeCoordinator() -> Coordinator {
         if let retained = Coordinator.retained[document.id] { return retained }
-        let coordinator = Coordinator(library: library, document: document)
+        let coordinator = Coordinator(library: library, document: document, kind: kind)
         Coordinator.retained[document.id] = coordinator
         return coordinator
     }
@@ -53,13 +56,22 @@ private struct OfficeWebView: UIViewRepresentable {
             library.present(EditorBridgeError.missingResources)
             return view
         }
-        let index = root.appendingPathComponent("index.html")
-        context.coordinator.trustedURL = index.standardizedFileURL
-        view.loadFileURL(index, allowingReadAccessTo: root)
+        let server = LocalEditorAssetServer(root: root)
+        context.coordinator.assetServer = server
+        server.start { [weak coordinator = context.coordinator, weak view] result in
+            guard let coordinator, let view else { return }
+            switch result {
+            case .success(let index):
+                coordinator.trustedURL = index
+                view.load(URLRequest(url: index))
+            case .failure(let error): coordinator.fail(error)
+            }
+        }
         return view
     }
 
     func updateUIView(_ view: WKWebView, context: Context) {
+        context.coordinator.document = document
         if context.coordinator.lastSaveRequest != saveRequest {
             context.coordinator.lastSaveRequest = saveRequest
             context.coordinator.requestSave()
@@ -77,8 +89,10 @@ private struct OfficeWebView: UIViewRepresentable {
         // Retain an unsaved editor through navigation and transient disk failures.
         static var retained: [UUID: Coordinator] = [:]
         let library: DocumentLibrary
-        let document: OfficeDocument
+        var document: OfficeDocument
+        let kind: String?
         var webView: WKWebView?
+        var assetServer: LocalEditorAssetServer?
         var trustedURL: URL?
         var lastSaveRequest = 0
         var dirty = false
@@ -89,21 +103,23 @@ private struct OfficeWebView: UIViewRepresentable {
         var revision = 0
         var lastSavedRevision = -1
 
-        init(library: DocumentLibrary, document: OfficeDocument) {
+        init(library: DocumentLibrary, document: OfficeDocument, kind: String?) {
             self.library = library
             self.document = document
+            self.kind = kind
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame,
-                  let trustedURL, message.frameInfo.request.url?.standardizedFileURL == trustedURL,
+                  let trustedURL, message.frameInfo.request.url == trustedURL,
                   let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
             switch type {
             case "ready":
                 do {
+                    if document.kind.isTextEditable { _ = try library.readText(document) }
                     let data = try Data(contentsOf: document.url)
                     let locale = Self.editorLocale
-                    let payload: [String: String] = ["name": document.filename, "base64": data.base64EncodedString(), "kind": document.url.pathExtension.lowercased(), "language": locale, "locale": locale]
+                    let payload: [String: String] = ["name": document.filename, "base64": data.base64EncodedString(), "kind": kind ?? document.url.pathExtension.lowercased(), "language": locale, "locale": locale]
                     let json = try JSONSerialization.data(withJSONObject: payload)
                     guard let string = String(data: json, encoding: .utf8) else { throw LibraryError.invalidFile }
                     webView?.evaluateJavaScript("void window.everyOffice.openDocument(\(string))") { [weak self] _, error in
@@ -117,6 +133,8 @@ private struct OfficeWebView: UIViewRepresentable {
                 library.savingDocumentIDs.insert(document.id)
                 library.pendingSaveActions[document.id] = { [self] in requestSave() }
                 if !draftInProgress { requestSave() }
+            case "opened":
+                library.readyDocumentIDs.insert(document.id)
             case "save":
                 do {
                     guard let base64 = body["base64"] as? String, let data = Data(base64Encoded: base64) else { throw LibraryError.invalidFile }
@@ -124,6 +142,7 @@ private struct OfficeWebView: UIViewRepresentable {
                     if savedRevision >= lastSavedRevision {
                         try library.saveData(data, document: document)
                         lastSavedRevision = savedRevision
+                        webView?.evaluateJavaScript("void window.everyOffice?.didSave?.(\(savedRevision))", completionHandler: nil)
                     }
                     saving = false
                     dirty = savedRevision < revision
@@ -138,6 +157,46 @@ private struct OfficeWebView: UIViewRepresentable {
                 } catch { fail(error) }
             case "error":
                 fail(EditorBridgeError.editor(body["message"] as? String ?? String(localized: "Unable to open")))
+            case "exportPDF", "printPages":
+                let requestID = body["requestId"] as? String
+                guard !library.preparingPDF, library.generatedPDF == nil else { acknowledgeExport(requestID, completed: false); return }
+                do {
+                    let pages = try SVGPrintPage.pages(from: body)
+                    let action: GeneratedPDFPresentation.Action = type == "printPages" ? .print : .share
+                    let name = body["name"] as? String ?? document.filename
+                    library.preparingPDF = true
+                    Task { [library, weak self] in
+                        defer { library.preparingPDF = false }
+                        do {
+                            let renderer = SVGPagePDFRenderer()
+                            let data = try await renderer.render(pages)
+                            library.generatedFileCompletion = { [weak self] completed in self?.acknowledgeExport(requestID, completed: completed) }
+                            library.generatedPDF = try GeneratedPDFPresentation.make(data: data, name: name, action: action)
+                        } catch {
+                            self?.acknowledgeExport(requestID, completed: false, error: error.localizedDescription)
+                            library.present(error)
+                        }
+                    }
+                } catch { acknowledgeExport(requestID, completed: false, error: error.localizedDescription); library.present(error) }
+            case "exportFile":
+                let requestID = body["requestId"] as? String
+                do {
+                    guard !library.preparingPDF, library.generatedPDF == nil,
+                          let base64 = body["base64"] as? String,
+                          base64.utf8.count <= Int(DocumentLibrary.maximumImportBytes * 4 / 3 + 4),
+                          let data = Data(base64Encoded: base64), let name = body["name"] as? String else { throw LibraryError.invalidFile }
+                    let presentation = try GeneratedPDFPresentation.makeFile(data: data, name: name)
+                    library.generatedFileCompletion = { [weak self] completed in self?.acknowledgeExport(requestID, completed: completed) }
+                    library.generatedPDF = presentation
+                } catch { acknowledgeExport(requestID, completed: false, error: error.localizedDescription); library.present(error) }
+            case "importCopy":
+                do {
+                    guard let base64 = body["base64"] as? String,
+                          base64.utf8.count <= Int(DocumentLibrary.maximumImportBytes * 4 / 3 + 4),
+                          let data = Data(base64Encoded: base64), let name = body["name"] as? String,
+                          let kind = body["kind"] as? String else { throw LibraryError.invalidFile }
+                    library.selectedID = try library.importCopy(data: data, name: name, kind: kind).id
+                } catch { library.present(error) }
             default: break
             }
         }
@@ -147,6 +206,15 @@ private struct OfficeWebView: UIViewRepresentable {
             if preferred.hasPrefix("zh-hant") || preferred.hasPrefix("zh-tw") { return "zh-TW" }
             if preferred.hasPrefix("zh") { return "zh" }
             return preferred.components(separatedBy: "-")[0]
+        }
+
+        private func acknowledgeExport(_ requestID: String?, completed: Bool, error: String? = nil) {
+            guard let requestID else { return }
+            var outcome: [String: Any] = ["completed": completed]
+            if let error { outcome["error"] = error }
+            guard let data = try? JSONSerialization.data(withJSONObject: [requestID, outcome]),
+                  let arguments = String(data: data, encoding: .utf8) else { return }
+            webView?.evaluateJavaScript("void window.everyOffice?.didExport?.(...\(arguments))", completionHandler: nil)
         }
 
         func requestSave() {
@@ -159,7 +227,7 @@ private struct OfficeWebView: UIViewRepresentable {
             }
         }
 
-        private func fail(_ error: Error) {
+        func fail(_ error: Error) {
             saving = false
             library.present(error)
             if !dirty { library.savingDocumentIDs.remove(document.id) }
@@ -167,6 +235,9 @@ private struct OfficeWebView: UIViewRepresentable {
         }
 
         func releaseWebView() {
+            library.readyDocumentIDs.remove(document.id)
+            assetServer?.stop()
+            assetServer = nil
             webView?.configuration.userContentController.removeScriptMessageHandler(forName: "everyOffice")
             webView?.navigationDelegate = nil
             webView = nil
@@ -175,8 +246,10 @@ private struct OfficeWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            let target = navigationAction.request.url?.standardizedFileURL
-            decisionHandler(target != nil && target == trustedURL ? .allow : .cancel)
+            guard let target = navigationAction.request.url, let frame = navigationAction.targetFrame else { decisionHandler(.cancel); return }
+            guard let trustedURL else { decisionHandler(.cancel); return }
+            let allowed = EditorNavigationPolicy.allows(target: target, mainFrame: frame.isMainFrame, trustedURL: trustedURL) { assetServer?.allowsNavigation(to: $0) == true }
+            decisionHandler(allowed ? .allow : .cancel)
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { fail(error) }

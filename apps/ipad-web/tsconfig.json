@@ -2,7 +2,16 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "types": ["node"],
+    "jsx": "react-jsx"
   },
-  "include": ["src", "tests", "vite.config.ts", "vitest.config.ts", "scripts"]
+  "include": [
+    "src",
+    "tests",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "scripts",
+    "../docs/src/renderer/env.d.ts",
+    "../docs/src/renderer/bidi-js.d.ts"
+  ]
 }

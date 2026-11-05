@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 command -v xcodebuild >/dev/null || { echo "Xcode is required; run this script on macOS." >&2; exit 1; }
 command -v xcodegen >/dev/null || { echo "Install XcodeGen: brew install xcodegen" >&2; exit 1; }
-for editor in DocumentEditor SpreadsheetEditor PresentationEditor; do
+for editor in DocumentEditor SpreadsheetEditor PresentationEditor HwpEditor FormatsEditor MarkdownEditor; do
   test -f "EveryOffice/Resources/$editor/index.html" || { echo "Missing $editor bundle. Run scripts/verify-web.sh first." >&2; exit 1; }
 done
 xcodegen generate

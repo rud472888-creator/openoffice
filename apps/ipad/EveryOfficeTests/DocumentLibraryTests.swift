@@ -126,4 +126,76 @@ final class DocumentLibraryTests: XCTestCase {
         XCTAssertFalse(library.savingDocumentIDs.contains(note.id))
         XCTAssertEqual(try library.readText(note), "Recovered draft")
     }
+
+    @MainActor
+    func testRenameKeepsIdentityExtensionAndBytesAndSurvivesReload() throws {
+        let library = makeLibrary()
+        let note = try library.create(markdown: true)
+        try library.saveText("# Original content", document: note)
+        library.selectedID = note.id
+        try library.toggleFavorite(note)
+        let renamed = try library.rename(note, to: "Planning notes")
+        XCTAssertEqual(renamed.id, note.id)
+        XCTAssertEqual(renamed.filename, "Planning notes.md")
+        XCTAssertTrue(renamed.isFavorite)
+        XCTAssertEqual(library.selectedID, note.id)
+        XCTAssertEqual(try library.readText(renamed), "# Original content")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: note.url.path))
+        XCTAssertEqual(makeLibrary().documents.first?.filename, "Planning notes.md")
+        XCTAssertThrowsError(try library.rename(renamed, to: "../Outside"))
+        XCTAssertThrowsError(try library.rename(renamed, to: "Hidden\nName"))
+    }
+
+    @MainActor
+    func testDuplicateUsesNewIdentityAndPreservesContentAndFormat() throws {
+        let library = makeLibrary()
+        let note = try library.create(markdown: false)
+        try library.saveText("Keep both copies", document: note)
+        let copy = try library.duplicate(note)
+        XCTAssertNotEqual(copy.id, note.id)
+        XCTAssertNotEqual(copy.filename, note.filename)
+        XCTAssertEqual(copy.url.pathExtension, note.url.pathExtension)
+        XCTAssertEqual(try Data(contentsOf: copy.url), try Data(contentsOf: note.url))
+        try library.saveText("Change only the duplicate", document: copy)
+        XCTAssertEqual(try library.readText(note), "Keep both copies")
+        library.savingDocumentIDs.insert(note.id)
+        XCTAssertThrowsError(try library.duplicate(note))
+        XCTAssertThrowsError(try library.rename(note, to: "Pending"))
+    }
+
+    @MainActor
+    func testTabsDoNotDuplicateAndClosingNeverDeletesDocument() throws {
+        let library = makeLibrary()
+        let first = try library.create(markdown: false)
+        let second = try library.create(markdown: true)
+        library.selectedID = first.id
+        library.selectedID = second.id
+        library.selectedID = first.id
+        XCTAssertEqual(library.openDocumentIDs, [first.id, second.id])
+        library.savingDocumentIDs.insert(first.id)
+        XCTAssertThrowsError(try library.closeTab(first))
+        library.savingDocumentIDs.remove(first.id)
+        try library.closeTab(first)
+        XCTAssertEqual(library.selectedID, second.id)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.url.path))
+        try library.closeTab(second)
+        XCTAssertNil(library.selectedID)
+        XCTAssertEqual(library.documents.count, 2)
+    }
+
+    @MainActor
+    func testConvertedImportCreatesIndependentDocumentAndRejectsUnsafeNames() throws {
+        let source = root.appendingPathComponent("legacy.doc")
+        let original = Data("Legacy original".utf8)
+        try original.write(to: source)
+        let library = makeLibrary()
+        let legacy = try library.importDocument(from: source)
+        let converted = try library.importCopy(data: Data("Converted DOCX".utf8), name: "legacy.docx", kind: "docx")
+        XCTAssertNotEqual(converted.id, legacy.id)
+        XCTAssertEqual(converted.url.pathExtension, "docx")
+        XCTAssertEqual(try Data(contentsOf: legacy.url), original)
+        XCTAssertThrowsError(try library.importCopy(data: Data(), name: "../escape.docx", kind: "docx"))
+        XCTAssertThrowsError(try library.importCopy(data: Data(), name: "wrong.txt", kind: "docx"))
+        XCTAssertThrowsError(try library.importCopy(data: Data(), name: "run.exe", kind: "exe"))
+    }
 }

@@ -7,7 +7,7 @@ enum DocumentKind: String, CaseIterable, Identifiable {
 
     init(extension ext: String) {
         switch ext.lowercased() {
-        case "txt", "csv", "tsv", "json", "xml", "yaml", "yml": self = .text
+        case "txt", "text", "csv", "tsv", "json", "xml", "yaml", "yml": self = .text
         case "md", "markdown": self = .markdown
         case "pdf": self = .pdf
         case "doc", "docx", "odt", "rtf", "hwp", "hwpx": self = .document
@@ -46,7 +46,7 @@ struct OfficeDocument: Identifiable, Hashable {
 }
 
 enum LibraryError: LocalizedError {
-    case invalidFile, tooLarge, textTooLarge, invalidText, missingDocument, pendingSave
+    case invalidFile, tooLarge, textTooLarge, invalidText, missingDocument, pendingSave, invalidName
 
     var errorDescription: String? {
         switch self {
@@ -55,7 +55,8 @@ enum LibraryError: LocalizedError {
         case .textTooLarge: String(localized: "Text editing supports files up to 10 MB.")
         case .invalidText: String(localized: "This file is not UTF-8 text. The original is unchanged.")
         case .missingDocument: String(localized: "This document could not be found.")
-        case .pendingSave: String(localized: "Save this document before deleting its local copy.")
+        case .pendingSave: String(localized: "Save this document before continuing.")
+        case .invalidName: String(localized: "Choose a name without slashes or control characters.")
         }
     }
 }

@@ -10,39 +10,18 @@ not included. It does not connect an account, AI service, or analytics service.
 
 ## What works
 
-- Create notes, Markdown documents, and blank DOCX, XLSX, and PPTX documents.
-- Import one or more documents using Files, including document-provider files.
-  Import copies the selected file into the app library; it does not edit the
-  original in place. Open-in URLs use the same copy workflow.
-- Browse recent documents, search filenames, add favorites, and delete local
-  copies. The library and favorites survive app restarts.
-- Edit UTF-8 text and Markdown, with automatic saves and an inline Markdown
-  preview. The preview supports inline syntax and preserves line breaks; it
-  does not render every block-level Markdown feature.
-- Edit supported DOCX paragraphs with the existing document engine, edit XLSX
-  cell values, and edit PPTX text in bundled offline WKWebView editors. Each
-  editor documents its supported subset in its package README. Unsupported
-  structures are guarded rather than rebuilt as a simplified document.
-- View PDFs with PDFKit. Select text and use **Highlight** to save a highlight
-  into the local PDF copy, provided the PDF permits annotations.
-- Preview other documents with Quick Look when the system supports their format.
-  Unsupported formats remain available for original-byte export.
-- Export a copy through the system file exporter or Share menu. Import/export
-  and document sharing work without an app-specific cloud service.
+- Native document library, Files import-copy, recent/favorite/search, tabs, rename, duplicate, share and guarded saving.
+- Rich DOCX editing with original document preservation, review tools, tables, pictures, headers/footers, page preview, PDF/print, ODT write-back and legacy DOC import-copy.
+- Actual desktop Univer spreadsheet grid with matched IronCalc WASM formula recalculation and persisted result caches.
+- Graphical PPTX shape/text/table/image editing, touch transforms, slide arrangement, undo/redo, slideshow and PDF/print.
+- Full local HWP/HWPX studio, Korean text editing, formatting, tables/pictures, memo editing, verified saves and PDF/print.
+- Graphical XMind, EPUB chapter editing, HTML source/live preview and the pinned offline draw.io application.
+- Desktop Markdown rich editor and TXT/JSON CodeMirror, formatting/tables/math/diagrams, source mode, search/replace, PDF/print and DOCX export.
+- Native PDF page operations, search, highlights, free-text notes, PencilKit ink and sharing/printing.
 
-The document editors are not full replacements for the desktop layout editors.
-There is no spreadsheet formula calculation, slide layout editing, PDF text
-editing, AI integration, desktop project integration, HWP editing, mind-map
-editing, or draw.io editing. Office-format details and preservation constraints
-are described in [DOCX](../ipad-web/README.md),
-[XLSX](../ipad-sheets/README.md), and [PPTX](../ipad-slides/README.md).
+The detailed [feature checklist](../../docs/ipad-feature-parity.md) distinguishes implemented paths from remaining desktop functionality and native/device acceptance. Full desktop parity is not yet complete. Claude/Codex execution and the project terminal are explicitly excluded from iPad by the user. AI/cloud services have not been connected or exercised.
 
-Files larger than 100 MiB cannot be imported. Text editing is limited to UTF-8
-files up to 10 MiB. Invalid UTF-8 files are not overwritten. Unsaved text and web
-editor drafts are retained in memory across navigation if a save fails, with
-**Retry save** available. Export, sharing, and deletion are blocked while a
-document has a pending save. A force quit or terminated web process can still
-lose an unsaved draft; the last successful local save remains available.
+Files larger than 100 MiB cannot be imported. Individual editors enforce lower format-specific parsing limits. Invalid UTF-8, unsupported protection and known lossy rewrites are refused. Dirty documents stay open when saving fails; the native host writes atomically and acknowledges the saved revision. A terminated web process or force quit can still lose an unsaved draft; the last successful file remains available.
 
 ## Build on macOS
 
@@ -56,8 +35,9 @@ apps/ipad/scripts/verify-web.sh
 apps/ipad/scripts/verify-simulator.sh
 ```
 
-The first script type-checks, tests, and builds the three offline editors and
-their blank-document templates. The second generates the Xcode project from
+The first script type-checks, tests, and builds the six offline editor workspaces and
+their blank-document templates. Generated editor bundles are ignored by Git; run
+this script before opening the Xcode project. The second generates the Xcode project from
 `project.yml`, chooses an available iPad simulator, and runs the unit and UI
 tests with signing disabled. Its result bundle is
 `apps/ipad/build/EveryOffice.xcresult`.
@@ -73,7 +53,7 @@ open EveryOffice.xcodeproj
 Select the **EveryOffice** scheme and an iPad simulator. For a physical iPad,
 choose your own signing team and bundle identifier in Xcode. The generated
 project and Info.plist are ignored; `project.yml` is the source of truth. All
-three HTML editor directories and the Templates directory must be copied as
+six generated editor directories and the Templates directory must be copied as
 folder resources; the spec includes those references explicitly.
 
 ## Validation and architecture

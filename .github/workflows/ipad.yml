@@ -7,6 +7,9 @@ on:
       - 'apps/ipad-web/**'
       - 'apps/ipad-sheets/**'
       - 'apps/ipad-slides/**'
+      - 'apps/ipad-hwp/**'
+      - 'apps/ipad-formats/**'
+      - 'apps/ipad-markdown/**'
       - '.github/workflows/ipad.yml'
       - 'package-lock.json'
   pull_request:
@@ -15,6 +18,9 @@ on:
       - 'apps/ipad-web/**'
       - 'apps/ipad-sheets/**'
       - 'apps/ipad-slides/**'
+      - 'apps/ipad-hwp/**'
+      - 'apps/ipad-formats/**'
+      - 'apps/ipad-markdown/**'
       - '.github/workflows/ipad.yml'
   workflow_dispatch:
 permissions:
@@ -49,4 +55,5 @@ jobs:
             apps/ipad/build/*.xcresult
             apps/ipad/build/xcodebuild.log
             apps/ipad/build/test-summary.json
+            apps/ipad/build/web-*.log
           if-no-files-found: ignore

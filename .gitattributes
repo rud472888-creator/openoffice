@@ -18,3 +18,11 @@
 
 # Template font license texts ship byte-identical to the distributors' files.
 packages/ui/template-fonts/*.txt -text
+
+# Offline browser resources are generated from reviewed TypeScript and vendor sources.
+apps/ipad/EveryOffice/Resources/*Editor/index.html -diff -whitespace
+apps/ipad/EveryOffice/Resources/Notices/NOTICE -whitespace
+# Preserve redistributed engine files and licence texts byte for byte.
+apps/ipad-sheets/vendor/ironcalc-xlsx/** -text -whitespace
+apps/ipad/licenses/*.txt -text -whitespace
+apps/ipad/EveryOffice/Resources/Notices/NOTICE -text

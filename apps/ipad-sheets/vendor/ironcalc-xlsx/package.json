@@ -1,0 +1,28 @@
+{
+  "name": "@ironcalc/wasm-xlsx",
+  "type": "module",
+  "collaborators": [
+    "Nicolas Hatcher <nicolas@theuniverse.today>"
+  ],
+  "description": "IronCalc Web bindings with XLSX import and export",
+  "version": "0.9.1",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ironcalc/IronCalc"
+  },
+  "files": [
+    "wasm_bg.wasm",
+    "wasm.js",
+    "wasm.d.ts",
+    "snippets",
+    "LICENSE-MIT",
+    "LICENSE-Apache-2.0",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "main": "wasm.js",
+  "types": "wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

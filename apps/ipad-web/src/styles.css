@@ -122,3 +122,188 @@ button:focus-visible {
 ::selection {
   background: var(--selection);
 }
+/* The document itself uses the desktop renderer's authored colors and layout. */
+body {
+  height: auto;
+  overflow: auto;
+  padding: 0;
+}
+#app {
+  min-height: 100vh;
+}
+.touch-ribbon {
+  position: sticky;
+  top: 0;
+  z-index: 10000;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 13px;
+}
+.touch-ribbon button,
+.touch-ribbon select,
+.touch-ribbon input {
+  min-height: 44px;
+  min-width: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--text);
+  font: inherit;
+  padding: 8px;
+}
+.touch-ribbon button[aria-pressed='true'] {
+  background: var(--selection);
+  border-color: var(--accent);
+}
+.touch-ribbon button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.touch-ribbon input[type='color'] {
+  width: 44px;
+  padding: 5px;
+}
+.touch-ribbon input[type='search'] {
+  flex: 1;
+  min-width: 130px;
+}
+.notice,
+.error {
+  padding: 8px 16px;
+  margin: 0 auto;
+  max-width: 900px;
+}
+.document-name {
+  padding: 8px 16px 12px;
+  border: none;
+  max-width: 900px;
+  margin: 0 auto;
+  color: var(--text);
+}
+.editor-viewport {
+  overflow: auto;
+  padding: 8px 12px 80px;
+}
+.rich-editor-host {
+  width: max-content;
+  min-width: 100%;
+}
+.rich-editor-host .ipad-rich-page {
+  --docs-paper: #ffffff;
+  --docs-paper-ink: #111111;
+  --docs-page-shadow: 0 2px 12px #00000018;
+  color: var(--docs-paper-ink);
+  background: var(--docs-paper);
+  caret-color: var(--docs-paper-ink);
+}
+.rich-editor-host.fit-width {
+  width: 100%;
+}
+.fit-width .ipad-rich-page {
+  width: 100%;
+  max-width: var(--page-w, 816px);
+  padding: clamp(20px, 7vw, 96px);
+}
+.ipad-rich-page .ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+}
+.ipad-rich-page .selectedCell::after {
+  background: var(--selection);
+}
+@media (max-width: 700px) {
+  .touch-ribbon {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .touch-ribbon > * {
+    flex-shrink: 0;
+  }
+  .touch-ribbon input[type='search'] {
+    flex: none;
+    width: 130px;
+  }
+}
+.touch-ribbon input[type='number'] {
+  width: 60px;
+}
+.ipad-rich-page .ipad-preserved-block {
+  outline: 1px dashed var(--muted);
+  outline-offset: 3px;
+  cursor: default;
+}
+.ipad-dialog {
+  width: min(680px, calc(100vw - 24px));
+  max-height: 86vh;
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  color: var(--text);
+  font:
+    15px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+.ipad-dialog::backdrop {
+  background: var(--selection);
+  opacity: 0.7;
+}
+.ipad-dialog h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+.ipad-dialog-body {
+  display: grid;
+  gap: 12px;
+}
+.ipad-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+  flex-wrap: wrap;
+}
+.ipad-field {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.ipad-dialog input,
+.ipad-dialog select {
+  min-height: 44px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--text);
+  font: inherit;
+}
+.ipad-dialog textarea {
+  min-height: 88px;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 16px;
+}
+.ipad-hf-host {
+  min-height: 150px;
+  border: 1px solid var(--line);
+  padding: 16px;
+  background: var(--paper);
+  color: var(--text);
+}
+.ipad-comment {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.ipad-print-root .pagination-preview {
+  z-index: 20000;
+}
