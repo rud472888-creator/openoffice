@@ -30,7 +30,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   simulator:
-    runs-on: macos-15
+    # Keep simulator validation off the capacity-constrained ARM runner pool.
+    runs-on: macos-15-intel
     timeout-minutes: 45
     env:
       NODE_OPTIONS: --max-old-space-size=4096
