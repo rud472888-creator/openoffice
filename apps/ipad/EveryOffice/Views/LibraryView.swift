@@ -6,7 +6,7 @@ struct LibraryView: View {
     @State private var section: LibrarySection = .all
     @State private var search = ""
     @State private var importing = false
-    @State private var showingAbout = false
+    @State private var showingSettings = false
     @State private var pendingDeletion: OfficeDocument?
     @State private var renamingDocument: OfficeDocument?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -67,7 +67,7 @@ struct LibraryView: View {
                 pendingDeletion = nil
             }
         } message: { Text("The file you imported from Files will stay unchanged.") }
-        .sheet(isPresented: $showingAbout) { AboutView() }
+        .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(item: $renamingDocument) { document in RenameDocumentSheet(library: library, document: document) }
         .sheet(item: Binding(get: { library.generatedPDF }, set: { value in
             if value == nil { library.generatedFileCompletion?(false); library.generatedFileCompletion = nil }
@@ -132,8 +132,8 @@ struct LibraryView: View {
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
-                Button { showingAbout = true } label: {
-                    Label("About", systemImage: "info.circle")
+                Button { showingSettings = true } label: {
+                    Label("Settings", systemImage: "gearshape")
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }

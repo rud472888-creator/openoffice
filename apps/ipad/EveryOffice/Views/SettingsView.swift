@@ -1,11 +1,12 @@
 import SwiftUI
 
-struct AboutView: View {
+struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
+                TipSection()
                 Section {
                     Text(verbatim: "EVERY OFFICE").font(.title.weight(.bold))
                     Text("An iPad workspace based on GenOffice.")
@@ -22,7 +23,7 @@ struct AboutView: View {
                     NavigationLink("Notices") { NoticeView(name: "NOTICE") }
                 }
             }
-            .navigationTitle("About")
+            .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }

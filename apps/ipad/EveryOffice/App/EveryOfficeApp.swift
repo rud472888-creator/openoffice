@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct EveryOfficeApp: App {
+    @State private var tips = TipStore()
     @State private var library = DocumentLibrary()
 
     private var testAppearance: ColorScheme? {
@@ -18,6 +19,8 @@ struct EveryOfficeApp: App {
     var body: some Scene {
         WindowGroup {
             LibraryView(library: library)
+                .environment(tips)
+                .onAppear { tips.startListening() }
                 .tint(OfficeTheme.accent)
                 .preferredColorScheme(testAppearance)
                 .onOpenURL { url in

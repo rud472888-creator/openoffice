@@ -1,0 +1,75 @@
+{
+  "identifier": "BC94C22C-F9B8-4F31-941B-E2AF097E3936",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "3900",
+      "familyShareable": false,
+      "internalID": "C92DE680-8B1D-49B7-AA82-231DA7E765A9",
+      "localizations": [
+        {
+          "description": "A one-time tip for the developer.",
+          "displayName": "Buy a coffee",
+          "locale": "en_US"
+        },
+        {
+          "description": "제작자에게 보내는 일회성 후원입니다.",
+          "displayName": "커피 사주기",
+          "locale": "ko"
+        }
+      ],
+      "productID": "app.everyoffice.ipad.tip.coffee",
+      "referenceName": "Buy a coffee",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "9900",
+      "familyShareable": false,
+      "internalID": "21F2F4A5-7529-470B-AE86-6A73FE846347",
+      "localizations": [
+        {
+          "description": "A one-time tip for the developer.",
+          "displayName": "Buy a meal",
+          "locale": "en_US"
+        },
+        {
+          "description": "제작자에게 보내는 일회성 후원입니다.",
+          "displayName": "밥 사주기",
+          "locale": "ko"
+        }
+      ],
+      "productID": "app.everyoffice.ipad.tip.meal",
+      "referenceName": "Buy a meal",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "100000",
+      "familyShareable": false,
+      "internalID": "7604B0CD-542C-45C1-9C26-70D4159A125E",
+      "localizations": [
+        {
+          "description": "A one-time tip for the developer.",
+          "displayName": "Cheer on the developer",
+          "locale": "en_US"
+        },
+        {
+          "description": "제작자에게 보내는 일회성 후원입니다.",
+          "displayName": "응원하기",
+          "locale": "ko"
+        }
+      ],
+      "productID": "app.everyoffice.ipad.tip.cheer",
+      "referenceName": "Cheer on the developer",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_locale": "ko",
+    "_storefront": "KOR"
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}
