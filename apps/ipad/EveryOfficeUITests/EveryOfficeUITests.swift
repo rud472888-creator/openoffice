@@ -355,9 +355,12 @@ final class EveryOfficeUITests: XCTestCase {
         app.terminate()
         app.launchArguments = launchArguments(resetLibrary: false)
         app.launch()
-        app.buttons["librarySection-recent"].tap()
-        XCTAssertTrue(app.buttons["document-Project notes Copy.txt"].exists)
-        app.buttons["document-Project notes.txt"].tap()
+        let copyRow = app.buttons["sidebarRecent-Project notes Copy.txt"]
+        let originalRow = app.buttons["sidebarRecent-Project notes.txt"]
+        XCTAssertTrue(copyRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(originalRow.isHittable)
+        XCTAssertLessThan(copyRow.frame.minY, originalRow.frame.minY)
+        originalRow.tap()
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
         assertSourceText("Keep this original note.", in: editor, app: app)
         attachScreenshot(app, name: "Renamed document reopened from Recent")

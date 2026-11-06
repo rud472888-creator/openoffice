@@ -14,7 +14,7 @@ struct LibraryView: View {
     @AppStorage("libraryUsesGrid") private var usesGrid = true
 
     private var filteredDocuments: [OfficeDocument] {
-        (section == .recent ? library.recentDocuments : library.documents).filter { document in
+        library.documents.filter { document in
             (section != .favorites || document.isFavorite) &&
             (search.isEmpty || document.filename.localizedStandardContains(search))
         }
@@ -38,13 +38,7 @@ struct LibraryView: View {
                 workspace
                     .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            Label("On this iPad", systemImage: "ipad")
-                                .labelStyle(.titleAndIcon)
-                                .font(.caption).foregroundStyle(OfficeTheme.secondary)
-                        }
-                    }
+
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -93,21 +87,45 @@ struct LibraryView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(verbatim: "every office")
+            Text(verbatim: "EVERY OFFICE")
                 .font(.system(size: 25, weight: .semibold, design: .rounded))
                 .tracking(-1).padding(.horizontal, 24).padding(.top, 34).padding(.bottom, 36)
 
             VStack(spacing: 6) {
                 sidebarItem("All documents", symbol: "square.grid.2x2", destination: .all,
                             count: library.documents.count)
-                sidebarItem("Recent documents", symbol: "clock", destination: .recent,
-                            count: library.recentDocuments.count)
                 sidebarItem("Favorites", symbol: "star", destination: .favorites,
                             count: library.documents.filter(\.isFavorite).count)
             }
             .padding(.horizontal, 12)
 
-            Spacer(minLength: 32)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Recent documents")
+                    .font(.caption.weight(.semibold)).foregroundStyle(OfficeTheme.secondary)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.horizontal, 26).padding(.top, 22)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(library.recentDocuments) { document in
+                            Button { library.selectedID = document.id } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: document.kind.symbol).frame(width: 20)
+                                        .foregroundStyle(OfficeTheme.secondary)
+                                    Text(verbatim: document.filename).lineLimit(1).truncationMode(.middle)
+                                }
+                                .font(.subheadline)
+                                .padding(.horizontal, 14)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("sidebarRecent-\(document.filename)")
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .accessibilityIdentifier("sidebarRecents")
+            }
             VStack(alignment: .leading, spacing: 8) {
                 Button { importing = true } label: {
                     Label("Import from Files", systemImage: "folder.badge.plus")
@@ -183,7 +201,7 @@ struct LibraryView: View {
     }
 
     private var workspaceTitle: some View {
-        Text(LocalizedStringKey(section == .favorites ? "Favorites" : section == .recent ? "Recent documents" : "Documents"))
+        Text(LocalizedStringKey(section == .favorites ? "Favorites" : "Documents"))
             .font(.largeTitle.weight(.semibold)).tracking(-0.8)
             .foregroundStyle(OfficeTheme.ink)
             .accessibilityAddTraits(.isHeader)
@@ -336,7 +354,7 @@ struct LibraryView: View {
     }
 }
 
-private enum LibrarySection: String { case all, recent, favorites }
+private enum LibrarySection: String { case all, favorites }
 
 private struct AdditionalTemplate: Identifiable {
     let ext: String

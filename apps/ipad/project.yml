@@ -47,6 +47,8 @@ targets:
       - path: EveryOffice/Resources/Templates
         type: folder
         buildPhase: resources
+      - path: EVERY-OFFICE-LICENSE
+        buildPhase: resources
       - path: ../../LICENSE
         buildPhase: resources
       - path: EveryOffice/Resources/Notices/NOTICE
@@ -56,7 +58,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.everyoffice.ipad
         SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/EveryOffice/App/EveryOffice-Bridging-Header.h
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: every office
+        INFOPLIST_KEY_CFBundleDisplayName: EVERY OFFICE
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

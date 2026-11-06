@@ -92,6 +92,7 @@ On 2026-11-06, the local M4 iPad run on iPadOS 27.2 (24B119), built with Xcode 2
 
 Manual Korean keyboard composition, Pencil input, selection/keyboard behavior, memory testing and complete desktop parity remain separate acceptance work. Passing the automated device suite does not complete the full feature checklist.
 
-The original repository [LICENSE](../../LICENSE) and [NOTICE](../../NOTICE) are
-bundled and visible under **About → Open source notices**. Browser dependency
-notices are retained with the offline editor resources.
+Original project-owned iPad application code in this release is offered under the
+[PolyForm Noncommercial License 1.0.0](EVERY-OFFICE-LICENSE). The upstream
+[Apache license](../../LICENSE) and [notices](../../NOTICE) are included under
+**About → License**. Offline editors also include their dependency notices.
