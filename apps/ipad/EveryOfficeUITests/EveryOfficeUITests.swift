@@ -111,11 +111,15 @@ final class EveryOfficeUITests: XCTestCase {
     private func assertSourceText(_ expected: String, in editor: XCUIElement, app: XCUIApplication,
                                   file: StaticString = #filePath, line: UInt = #line) {
         // WebKit's contenteditable AX snapshot can lag input. Reopened new
-        // notes have the desktop writer's final newline plus an AX block
-        // separator. The real-bundle test checks exact file bytes separately.
+        // notes can include the desktop writer's final newline and WebKit AX
+        // block separators. The real-bundle test checks exact file bytes.
         let matches = NSPredicate { _, _ in
             guard let value = editor.value as? String else { return false }
-            return value == expected || value == expected + "\n\n"
+            var content = value
+            while let last = content.unicodeScalars.last, last.value == 10 || last.value == 13 {
+                content.unicodeScalars.removeLast()
+            }
+            return content == expected
         }
         let complete = XCTNSPredicateExpectation(predicate: matches, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [complete], timeout: 15), .completed,

@@ -8,6 +8,8 @@ The implementation now includes rich DOCX editing, a desktop-grid XLSX adapter, 
 
 These checked items have concrete implementations and the stated automated evidence. They are narrower than the complete desktop feature groups below.
 
+On 2026-11-06, the local M4 iPad run on iPadOS 27.2 (24B119), built with Xcode 27.1 (27A9275), passed 46 unit tests and 4 UI tests, **50 native tests in total**. These include eleven actual-bundle WebKit tests, Korean DOCX input/save/reopen and byte-exact TXT saving; UI coverage includes DOCX/TXT/HWP edit/save/relaunch and rename/duplicate/tab switching. All six web workspaces passed typecheck, 136 tests and production builds. [Validation evidence and reproduction commands](../apps/ipad/VALIDATION.md) distinguish these scoped device checks from broader parity. The historical `49a5daa7c` Simulator CI completed with 46/49 passing and three UI failures; it is not pending. Manual Korean keyboard composition, Pencil input, selection/keyboard behavior and memory acceptance remain open.
+
 - [x] HTML source editing, sandboxed preview, leaf-text source patches, paragraph insertion, undo/redo and exact unchanged/BOM/newline preservation: [adapter](../apps/ipad-formats/src/html.ts), model tests and tablet Chromium edit/save smoke.
 - [x] Graphical XMind editing using the actual desktop `MapController`/`DocumentSession`: topics, rich emphasis, notes, pictures, relationships, summaries, boundaries, folds, six layouts, themes, sheet add/rename. Unknown ZIP entries survive model save/reopen tests; tablet Chromium adds and saves a real branch. [Adapter](../apps/ipad-formats/src/mindmap.ts).
 - [x] EPUB chapter navigation and in-place editing through the actual desktop `EpubEditController`, original core range edits and local image/CSS/font resolution; original inline formatting and unrelated entries survive save/reopen. Fixed-layout books are read-only. [Adapter](../apps/ipad-formats/src/epub.ts).
@@ -145,7 +147,7 @@ Evidence: [PDF feature guide](../apps/shell/src/renderer/src/i18n/help/topics/pd
 - [ ] AI reading, document translation/plain-language modes, passage cards, citations/overview, accepted highlights, bilingual alignment and per-PDF notes.
 - [ ] Durable cancellable/resumable job/result store and saved-result management.
 
-Observed iPad code: native PDFKit viewing/search, selection highlights, free-text annotations, PencilKit ink, page reorder/delete/rotation, and print/share. These operations have authored native regression tests; current Simulator execution remains an acceptance gate. Desktop uses PDF.js, pdf-lib, PDFium WASM, qpdf WASM and font tooling. Native PDFKit can implement some operations, but neither its availability nor adding a highlight establishes editing/redaction/conversion parity. Desktop main-process handlers need explicit native/browser replacements.
+Observed iPad code: native PDFKit viewing/search, selection highlights, free-text annotations, PencilKit ink, page reorder/delete/rotation, and print/share. Native regression tests passed in the physical-device unit suite on 2026-11-06; manual Pencil and complete PDF workflow acceptance remain open. Desktop uses PDF.js, pdf-lib, PDFium WASM, qpdf WASM and font tooling. Native PDFKit can implement some operations, but neither its availability nor adding a highlight establishes editing/redaction/conversion parity. Desktop main-process handlers need explicit native/browser replacements.
 
 ### Markdown and plain text
 
@@ -255,4 +257,4 @@ Evidence: [shell architecture](../apps/shell/AGENTS.md), [home guide](../apps/sh
 - [ ] Test encrypted/signed/unsupported archives, XML depth/size/inflation limits and untrusted HTML/EPUB/diagram payloads across the native bridge.
 - [ ] macOS CI builds and runs Simulator tests; physical iPad acceptance records remain separate from Linux browser tests.
 
-Passing preservation, browser and native unit tests remain distinct from complete desktop feature coverage and physical iPad acceptance. No unchecked feature is declared complete by engine reuse alone.
+Passing preservation, browser, native unit and the four physical-device UI tests remain distinct from complete desktop feature coverage and broader physical iPad acceptance. No unchecked feature is declared complete by engine reuse or these scoped automated checks alone.

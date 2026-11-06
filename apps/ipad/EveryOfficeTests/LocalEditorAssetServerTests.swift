@@ -46,7 +46,10 @@ final class LocalEditorAssetServerTests: XCTestCase {
 
     func testResolverDecodesUnicodeAndUsesWasmAndFontMimeTypes() {
         let resolver = EditorAssetResolver(root: directory, token: "token")
-        XCTAssertEqual(resolver.resourceURL(for: "/token/My%20Font.woff2"), directory.appendingPathComponent("My Font.woff2").resolvingSymlinksInPath())
+        // Device temporary directories can use the /private/var alias. Resolve
+        // the existing root before appending the deliberately absent asset.
+        let root = directory.standardizedFileURL.resolvingSymlinksInPath()
+        XCTAssertEqual(resolver.resourceURL(for: "/token/My%20Font.woff2"), root.appendingPathComponent("My Font.woff2"))
         XCTAssertEqual(EditorAssetResolver.mimeType(for: directory.appendingPathComponent("engine.wasm")), "application/wasm")
         XCTAssertEqual(EditorAssetResolver.mimeType(for: directory.appendingPathComponent("font.woff2")), "font/woff2")
         XCTAssertEqual(EditorAssetResolver.mimeType(for: directory.appendingPathComponent("module.mjs")), "text/javascript; charset=utf-8")

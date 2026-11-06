@@ -61,6 +61,8 @@ project and Info.plist are ignored; `project.yml` is the source of truth. All
 six generated editor directories and the Templates directory must be copied as
 folder resources; the spec includes those references explicitly.
 
+Physical-device build/test commands and local evidence are in [VALIDATION.md](VALIDATION.md). The UI suite resets the app's Library for every test; use a fresh test installation with no user documents.
+
 ## Validation and architecture
 
 `DocumentLibrary` owns local file operations and metadata. Imports coordinate
@@ -79,15 +81,14 @@ navigation until its pending save completes or the user retries a failure.
 
 XCTest covers byte-preserving imports, duplicate filenames, restart persistence,
 favorite recovery, invalid text, import limits, save/delete guards, and unique
-note creation. Ten actual-bundle WebKit tests exercise format opening and saving, including the desktop TXT newline policy. A separate native lifecycle test covers saves requested before document loading completes.
+note creation. Eleven actual-bundle WebKit tests exercise format opening and saving, including Korean DOCX input/save/reopen and the desktop TXT newline policy. A separate native lifecycle test covers saves requested before document loading completes.
 XCUITest checks text notes, rich DOCX and HWP canvas input across app relaunch,
-plus file rename, duplication and tabs. Simulator screenshots and bridge diagnostics
+plus file rename, duplication and tabs. Screenshots and bridge diagnostics
 are attached to the result bundle.
 
-The initial implementation environment is Linux, so native compilation and iPad
-Simulator execution cannot be verified there. A successful web test run does
-not establish native build or simulator success. Use the macOS validation
-script or the repository's iPad workflow to obtain that evidence.
+On 2026-11-06, the local M4 iPad run on iPadOS 27.2 (24B119), built with Xcode 27.1 (27A9275), passed all **50 native tests: 46 unit tests and 4 UI tests**. All six web workspaces also passed typecheck, 136 tests and production builds. The latest historical Simulator CI at `49a5daa7c` completed with 46/49 passing and three UI failures; the local test fixes and device results are documented separately in [VALIDATION.md](VALIDATION.md).
+
+Manual Korean keyboard composition, Pencil input, selection/keyboard behavior, memory testing and complete desktop parity remain separate acceptance work. Passing the automated device suite does not complete the full feature checklist.
 
 The original repository [LICENSE](../../LICENSE) and [NOTICE](../../NOTICE) are
 bundled and visible under **About → Open source notices**. Browser dependency

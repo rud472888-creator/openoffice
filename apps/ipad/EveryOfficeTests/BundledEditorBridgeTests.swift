@@ -10,6 +10,14 @@ final class BundledEditorBridgeTests: XCTestCase {
     }
 
     @MainActor
+    func testDOCXInputSurvivesSaveAndReopenThroughWebKit() async throws {
+        let text = "An office document saved on iPad. 한글"
+        try await exercise(resource: "DocumentEditor", kind: "docx", template: "Blank.docx", format: .zip,
+                           typedText: text, editorSelector: "[data-testid='document-editor']",
+                           expectedEditorText: text, reopenSaved: true)
+    }
+
+    @MainActor
     func testXLSXEditorOpensAndSavesThroughWebKit() async throws {
         try await exercise(resource: "SpreadsheetEditor", kind: "xlsx", template: "Blank.xlsx", format: .zip)
     }
@@ -65,7 +73,8 @@ final class BundledEditorBridgeTests: XCTestCase {
     @MainActor
     private func exercise(resource: String, kind: String, template: String? = nil, source: Data? = nil,
                           format: SavedFormat, unchanged: Bool = false, typedText: String? = nil,
-                          expectedText: String? = nil) async throws {
+                          expectedText: String? = nil, editorSelector: String = ".cm-content",
+                          expectedEditorText: String? = nil, reopenSaved: Bool = false) async throws {
         let started = Date()
         let deadline = started.addingTimeInterval(60)
         func remaining() -> TimeInterval { max(0.1, deadline.timeIntervalSinceNow) }
@@ -94,15 +103,24 @@ final class BundledEditorBridgeTests: XCTestCase {
         guard harness.openedReceived else { return }
         if let typedText {
             harness.call("""
-                const content = document.querySelector('.cm-content');
-                if (!content) throw new Error('The plain-text editor is missing');
+                const content = document.querySelector(selector);
+                if (!content) throw new Error('The editable document is missing');
                 content.focus();
                 if (!document.execCommand('insertText', false, input)) throw new Error('WebKit rejected text input');
                 await new Promise(requestAnimationFrame);
                 await new Promise(requestAnimationFrame);
+                if (content.textContent !== input) throw new Error('WebKit input differs: ' + JSON.stringify(content.textContent));
                 await window.everyOffice.saveDocument();
                 return true;
-                """, arguments: ["input": typedText])
+                """, arguments: ["input": typedText, "selector": editorSelector])
+        } else if let expectedEditorText {
+            harness.call("""
+                const content = document.querySelector(selector);
+                if (!content) throw new Error('The reopened editable document is missing');
+                if (content.textContent !== expected) throw new Error('Reopened document differs: ' + JSON.stringify(content.textContent));
+                await window.everyOffice.saveDocument();
+                return true;
+                """, arguments: ["selector": editorSelector, "expected": expectedEditorText])
         } else {
             harness.call("await window.everyOffice.saveDocument(); return true;")
         }
@@ -124,6 +142,10 @@ final class BundledEditorBridgeTests: XCTestCase {
         if unchanged { XCTAssertEqual(saved, bytes, "\(resource)/\(kind) guarantees original-byte no-op saves") }
         if let expectedText { XCTAssertEqual(saved, Data(expectedText.utf8), "Plain-text save must preserve the desktop source format exactly") }
         XCTAssertLessThanOrEqual(Date().timeIntervalSince(started), 60, "The complete route contract must finish within 60 seconds")
+        if reopenSaved {
+            try await exercise(resource: resource, kind: kind, source: saved, format: format, unchanged: true,
+                               editorSelector: editorSelector, expectedEditorText: expectedEditorText)
+        }
     }
 }
 
