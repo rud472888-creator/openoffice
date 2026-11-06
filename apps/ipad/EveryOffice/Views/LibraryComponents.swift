@@ -2,6 +2,7 @@ import SwiftUI
 import QuickLookThumbnailing
 
 struct NewDocumentCard: View {
+    @ScaledMetric(relativeTo: .subheadline) private var cardHeight: CGFloat = 100
     let title: LocalizedStringKey
     let symbol: String
     let format: String
@@ -11,7 +12,7 @@ struct NewDocumentCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: symbol).font(.system(size: 20, weight: .regular))
                         .foregroundStyle(color)
@@ -19,10 +20,11 @@ struct NewDocumentCard: View {
                     Text(verbatim: format).font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .tracking(0.6).foregroundStyle(OfficeTheme.secondary)
                 }
+                .frame(height: 24)
                 Text(title).font(.subheadline.weight(.medium)).lineLimit(2, reservesSpace: true)
                     .foregroundStyle(OfficeTheme.ink).frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(16).frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+            .padding(14).frame(maxWidth: .infinity, alignment: .leading).frame(height: cardHeight)
             .background(OfficeTheme.surface, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(OfficeTheme.border.opacity(0.65), lineWidth: 0.5))
         }
@@ -58,7 +60,7 @@ struct DocumentCard: View {
                 }
             VStack(alignment: .leading, spacing: 9) {
                 Text(verbatim: document.name).font(.subheadline.weight(.semibold))
-                    .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(2, reservesSpace: true).frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 8) {
                     Text(verbatim: document.url.pathExtension.uppercased()).font(.caption2.weight(.semibold))
                         .foregroundStyle(OfficeTheme.color(for: document.kind))

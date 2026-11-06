@@ -2,6 +2,12 @@
 
 Current validation checkpoint: 2026-11-06, including a local physical iPad run. The redesign verification passed **58 distinct tests: 50 unit tests and 8 UI tests**, across the main run and focused reruns. This records the tested scope, not complete desktop parity.
 
+## Editor toolbar and card refinement: 2026-11-06
+
+The follow-up to `ab942d59e` shortens the HWP creation label, gives every creation card the same Dynamic Type-scaled height, and hides the tab strip when only one document is open. DOCX commands occupy a single scrollable row with a category selector. HWP opens with the studio menus and formatting tools folded; the Editing tools switch restores them without changing the document.
+
+Both affected web workspaces passed typecheck, production builds and 57 tests (48 DOCX, 9 HWP). Browser checks verified category changes at 390/1024 pixels, HWP toolbar expansion/collapse, Korean editing, saving and reopening. On the M4 iPad, the home test measured equal card heights in both orientations, and DOCX edit/save/relaunch and multi-document tab switching passed (`Refine-editor-ui.xcresult`). Its HWP check initially queried a button; the device exposes `aria-pressed` as a switch. The corrected HWP test verified both switch states and saved/reopened canvas text, alongside three bundled WebKit document regressions (`Refine-verify.xcresult`). The signed app was relaunched without test arguments.
+
 ## Workspace redesign: 2026-11-06
 
 The working tree is based on `31038de23`, with the native workspace and six web-editor host styles redesigned. The signed Debug app uses the same M4 iPad, iPadOS 27.2 (24B119) and Xcode 27.1 (27A9275). Document engine behavior was retained. [REHEARSAL.md](REHEARSAL.md) records the Stageshow design references and visual corrections.

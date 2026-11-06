@@ -5721,132 +5721,132 @@
         }
       }
     },
-    "New HWP document": {
+    "New HWP": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "New HWP document"
+            "value": "New HWP"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "새 HWP 문서"
+            "value": "새 HWP"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新規HWP書類"
+            "value": "新規HWP"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新建 HWP 文档"
+            "value": "新建 HWP"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增 HWP 文件"
+            "value": "新增 HWP"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nouveau document HWP"
+            "value": "Nouveau HWP"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Neues HWP-Dokument"
+            "value": "Neue HWP"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nuevo documento HWP"
+            "value": "Nuevo HWP"
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Novo documento HWP"
+            "value": "Novo HWP"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nuovo documento HWP"
+            "value": "Nuovo HWP"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nieuw HWP-document"
+            "value": "Nieuwe HWP"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nowy dokument HWP"
+            "value": "Nowy HWP"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nový dokument HWP"
+            "value": "Nový HWP"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Новый документ HWP"
+            "value": "Новый HWP"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dokumen HWP baru"
+            "value": "HWP baru"
           }
         },
         "ms": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dokumen HWP baharu"
+            "value": "HWP baharu"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "مستند HWP جديد"
+            "value": "HWP جديد"
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "מסמך HWP חדש"
+            "value": "HWP חדש"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "नया HWP दस्तावेज़"
+            "value": "नया HWP"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เอกสาร HWP ใหม่"
+            "value": "HWP ใหม่"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tài liệu HWP mới"
+            "value": "HWP mới"
           }
         }
       }

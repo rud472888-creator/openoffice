@@ -74,39 +74,25 @@ export function installTouchTabs(toolbar: HTMLElement): void {
       ? 'always'
       : (labels.get(label) ?? 'ribbonTabHome')
   }
-  const navigation = document.createElement('div')
-  navigation.className = 'ribbon-tabs'
-  navigation.setAttribute('role', 'tablist')
-  const tabs: HTMLButtonElement[] = []
+  const navigation = document.createElement('select')
+  navigation.className = 'ribbon-category'
   const select = (key: StringKey) => {
     for (const control of controls)
       control.hidden = control.dataset.ribbonTab !== key && control.dataset.ribbonTab !== 'always'
-    for (const tab of tabs) {
-      const active = tab.dataset.tab === key
-      tab.setAttribute('aria-selected', String(active))
-      tab.tabIndex = active ? 0 : -1
-    }
+    navigation.value = key
+    navigation.setAttribute('aria-label', t(key))
   }
   for (const group of groups) {
     if (!controls.some((control) => control.dataset.ribbonTab === group.key)) continue
-    const tab = document.createElement('button')
-    tab.type = 'button'
-    tab.setAttribute('role', 'tab')
-    tab.textContent = t(group.key)
-    tab.dataset.tab = group.key
-    tab.addEventListener('pointerdown', (event) => event.preventDefault())
-    tab.addEventListener('click', () => select(group.key))
-    tab.addEventListener('keydown', (event) => {
-      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
-      event.preventDefault()
-      const next =
-        tabs[(tabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]
-      select(next.dataset.tab as StringKey)
-      next.focus()
-    })
-    tabs.push(tab)
-    navigation.append(tab)
+    const option = document.createElement('option')
+    option.value = group.key
+    option.textContent = t(group.key)
+    navigation.append(option)
   }
+  navigation.addEventListener('change', () => {
+    select(navigation.value as StringKey)
+    toolbar.scrollLeft = 0
+  })
   toolbar.prepend(navigation)
   select('ribbonTabHome')
 }

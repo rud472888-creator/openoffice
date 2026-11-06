@@ -33,11 +33,14 @@ final class EveryOfficeUITests: XCTestCase {
                 failureContext("Home must have room for the workspace instead of leaving an empty third column.", app: app))
             XCTAssertGreaterThanOrEqual(library.frame.maxX, app.frame.maxX - 40,
                 failureContext("The home workspace must extend to the trailing edge of the window.", app: app))
+            let cardHeight = app.buttons["newDocument"].frame.height
+            XCTAssertEqual(app.buttons["newHwp"].label, "New HWP")
             for identifier in ["newDocument", "newWorkbook", "newPresentation", "newHwp", "newNote", "newMarkdown"] {
                 let control = app.buttons[identifier]
                 XCTAssertTrue(control.isHittable, failureContext("The primary format \(identifier) must be available without scrolling.", app: app))
                 XCTAssertGreaterThanOrEqual(control.frame.width, 44)
                 XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+                XCTAssertEqual(control.frame.height, cardHeight, accuracy: 0.5)
             }
             XCTAssertTrue(app.buttons["moreFormats"].isHittable)
             attachScreenshot(app, name: orientation.isLandscape ? "Home landscape light" : "Home portrait light")
@@ -186,6 +189,7 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(documentVisible, failureContext("The home workspace must show New document at launch.", app: app))
         newDocument.tap()
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30), failureContext("DOCX must finish opening before editing.", app: app))
+        XCTAssertFalse(app.scrollViews["documentTabs"].exists)
         let paragraph = app.webViews.textViews.matching(identifier: "Untitled.docx").firstMatch
         XCTAssertTrue(paragraph.waitForExistence(timeout: 30), failureContext("The bundled DOCX page must load through WKWebView.", app: app))
         paragraph.tap()
@@ -330,7 +334,16 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 60), failureContext("The HWP engine must finish loading the document.", app: app))
         let input = app.webViews.descendants(matching: .any).matching(identifier: "문서 편집 입력").firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 60), failureContext("The local HTTP HWP studio and WASM input must load.", app: app))
+        XCTAssertFalse(app.scrollViews["documentTabs"].exists)
         let webView = app.webViews.firstMatch
+        let tools = webView.switches["Editing tools"]
+        XCTAssertTrue(tools.waitForExistence(timeout: 10))
+        XCTAssertEqual(tools.value as? String, "0")
+        tools.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: tools)], timeout: 5), .completed)
+        attachScreenshot(app, name: "Expanded HWP editing tools")
+        tools.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '0'"), object: tools)], timeout: 5), .completed)
         attachScreenshot(app, name: "HWP studio before canvas input")
         // The studio uses an IME sink. A user taps the visible page to focus it.
         webView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()

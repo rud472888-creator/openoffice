@@ -235,7 +235,7 @@ struct LibraryView: View {
                 NewDocumentCard(title: "New document", symbol: "doc.text", format: "DOCX", color: OfficeTheme.documentBlue, identifier: "newDocument") { createOffice("docx") }
                 NewDocumentCard(title: "New workbook", symbol: "tablecells", format: "XLSX", color: OfficeTheme.sheetGreen, identifier: "newWorkbook") { createOffice("xlsx") }
                 NewDocumentCard(title: "New presentation", symbol: "rectangle.on.rectangle", format: "PPTX", color: OfficeTheme.slideOrange, identifier: "newPresentation") { createOffice("pptx") }
-                NewDocumentCard(title: "New HWP document", symbol: "doc.text", format: "HWP", color: OfficeTheme.documentBlue, identifier: "newHwp") { createOffice("hwp") }
+                NewDocumentCard(title: "New HWP", symbol: "doc.text", format: "HWP", color: OfficeTheme.documentBlue, identifier: "newHwp") { createOffice("hwp") }
                 NewDocumentCard(title: "New note", symbol: "doc.plaintext", format: "TXT", color: OfficeTheme.secondary, identifier: "newNote") { create(markdown: false) }
                 NewDocumentCard(title: "New Markdown", symbol: "text.alignleft", format: "MD", color: OfficeTheme.secondary, identifier: "newMarkdown") { create(markdown: true) }
             }
@@ -315,7 +315,7 @@ struct LibraryView: View {
 
     private var additionalTemplates: [AdditionalTemplate] {
         let candidates = [
-            AdditionalTemplate(ext: "hwp", title: "New HWP document", symbol: "doc.text", identifier: "newHwp"),
+            AdditionalTemplate(ext: "hwp", title: "New HWP", symbol: "doc.text", identifier: "newHwp"),
             AdditionalTemplate(ext: "html", title: "New HTML", symbol: "chevron.left.forwardslash.chevron.right", identifier: "newHtml"),
             AdditionalTemplate(ext: "xmind", title: "New mind map", symbol: "point.3.connected.trianglepath.dotted", identifier: "newMindMap"),
             AdditionalTemplate(ext: "drawio", title: "New diagram", symbol: "square.on.square.dashed", identifier: "newDiagram"),

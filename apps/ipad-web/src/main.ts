@@ -50,13 +50,11 @@ const toolbar = document.createElement('div')
 toolbar.className = 'touch-ribbon'
 const conversionNotice = document.createElement('p')
 conversionNotice.className = 'notice'
-const title = document.createElement('h1')
-title.className = 'document-name'
 const errorNotice = document.createElement('p')
 errorNotice.className = 'error'
 errorNotice.setAttribute('role', 'alert')
 errorNotice.hidden = true
-root.append(toolbar, notice, errorNotice, conversionNotice, title, viewport)
+root.append(toolbar, notice, errorNotice, conversionNotice, viewport)
 notice.textContent = strings.text.empty
 
 function send(message: NativeMessage): void {
@@ -88,7 +86,6 @@ window.everyOffice = {
     toolbar.replaceChildren()
     errorNotice.hidden = true
     notice.textContent = strings.text.loading
-    title.textContent = request.name
     conversionNotice.textContent = ''
     try {
       const model = await openRichDocument(decodeBase64(request.base64), request.name, request.kind)
@@ -136,7 +133,8 @@ window.everyOffice = {
           ? strings.text.protectedBlock
           : model.readOnly
             ? strings.text.readOnly
-            : strings.text.mode
+            : ''
+      viewport.setAttribute('aria-description', notice.textContent || strings.text.mode)
       send({ type: 'opened', name: request.name, revision: 0, readOnly: model.readOnly })
       return true
     } catch (error) {

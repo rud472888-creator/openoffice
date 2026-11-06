@@ -139,8 +139,10 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
-  padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px max(16px, env(safe-area-inset-right)) 6px max(16px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--line);
   background: var(--paper);
   font-size: 13px;
@@ -172,8 +174,8 @@ body {
   padding: 5px;
 }
 .touch-ribbon input[type='search'] {
-  flex: 1;
-  min-width: 130px;
+  flex: none;
+  width: 130px;
 }
 .notice,
 .error {
@@ -187,16 +189,8 @@ body {
 .error {
   color: var(--error);
 }
-.document-name {
-  padding: 20px 24px 12px;
-  border: none;
-  max-width: 960px;
-  margin: 0 auto;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+.notice:empty {
+  display: none;
 }
 .editor-viewport {
   overflow: auto;
@@ -227,19 +221,6 @@ body {
 }
 .ipad-rich-page .selectedCell::after {
   background: var(--selection);
-}
-@media (max-width: 700px) {
-  .touch-ribbon {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-  }
-  .touch-ribbon > * {
-    flex-shrink: 0;
-  }
-  .touch-ribbon input[type='search'] {
-    flex: none;
-    width: 130px;
-  }
 }
 .touch-ribbon input[type='number'] {
   width: 60px;
@@ -331,37 +312,9 @@ body {
 .ipad-desktop-dialog-root button {
   min-height: 40px;
 }
-.touch-ribbon .ribbon-tabs {
-  display: flex;
-  width: 100%;
-  gap: 4px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.touch-ribbon .ribbon-tabs button {
-  flex-shrink: 0;
-  border-color: transparent;
-  background: transparent;
-}
-.touch-ribbon .ribbon-tabs button[aria-selected='true'] {
-  border-color: transparent;
-  background: var(--selection);
-  color: var(--accent-dark);
-}
-.touch-ribbon {
-  max-height: 260px;
-  overflow-y: auto;
-}
 .touch-ribbon [hidden] {
   display: none !important;
 }
-@media (max-width: 700px) {
-  .touch-ribbon {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-}
-
 .touch-ribbon :is(input, select) {
   border-color: var(--line);
 }
@@ -377,4 +330,18 @@ body {
   border-radius: 8px;
   color: var(--text);
   background: var(--paper);
+}
+
+.touch-ribbon > * {
+  flex-shrink: 0;
+}
+.touch-ribbon .ribbon-category {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  max-width: 170px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  border-color: transparent;
+  font-weight: 600;
 }

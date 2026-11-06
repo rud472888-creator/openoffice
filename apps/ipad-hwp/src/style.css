@@ -90,11 +90,11 @@ body {
 #host-tools {
   display: flex;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 4px 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-sizing: border-box;
-  min-height: 61px;
+  min-height: 53px;
   overflow-x: auto;
   flex: none;
 }
@@ -113,7 +113,7 @@ body {
 }
 .memo-panel {
   position: fixed;
-  top: 61px;
+  top: 53px;
   bottom: 0;
   right: 0;
   width: min(350px, 90vw);
@@ -192,7 +192,7 @@ body {
   border-radius: 8px;
   font-size: 13px;
 }
-#host-tools button:first-child {
+#host-tools button[aria-pressed='true'] {
   color: var(--accent-dark);
   background: var(--accent-soft);
   font-weight: 600;
@@ -214,6 +214,6 @@ dialog::backdrop {
   background: var(--color-bg-overlay);
 }
 
-#host-tools button:first-child:hover:not(:disabled) {
+#host-tools button[aria-pressed='true']:hover:not(:disabled) {
   background: var(--accent-soft);
 }

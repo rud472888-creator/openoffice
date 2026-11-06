@@ -96,6 +96,13 @@ try {
   assert.deepEqual(Buffer.from(unchanged.base64, 'base64'), original)
   const frame = page.frames().find((candidate) => candidate.url().includes('/studio/'))
   assert.ok(frame)
+  const tools = page.getByRole('button', { name: '편집 도구', exact: true })
+  const formatting = frame.locator('#style-bar')
+  await formatting.waitFor({ state: 'hidden' })
+  await tools.click()
+  await formatting.waitFor({ state: 'visible' })
+  await tools.click()
+  await formatting.waitFor({ state: 'hidden' })
   await frame.locator('textarea[aria-label]').focus()
   await page.keyboard.insertText('한글 편집 저장 검증')
   await page.waitForFunction(() =>

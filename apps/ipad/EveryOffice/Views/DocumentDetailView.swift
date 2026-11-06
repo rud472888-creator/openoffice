@@ -10,7 +10,7 @@ struct DocumentDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DocumentTabsView(library: library)
+            if library.openDocuments.count > 1 { DocumentTabsView(library: library) }
             switch EditorRoute.route(for: document) {
             case .text:
                 TextDocumentEditor(library: library, document: document)
@@ -24,6 +24,7 @@ struct DocumentDetailView: View {
         }
         .navigationTitle(document.filename)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(removing: .sidebarToggle)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Menu {

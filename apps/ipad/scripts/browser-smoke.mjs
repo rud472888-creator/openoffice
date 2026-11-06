@@ -91,6 +91,12 @@ try {
   assert.equal(await editable.innerText(), 'every office 한글 편집 검증')
   for (const width of [1024, 390]) {
     await page.setViewportSize({ width, height: 768 })
+    const ribbon = page.locator('.touch-ribbon')
+    const category = ribbon.locator('.ribbon-category')
+    await category.selectOption('ribbonTabInsert')
+    assert.ok(await ribbon.locator('[data-ribbon-tab="ribbonTabInsert"]:visible').count())
+    await category.selectOption('ribbonTabHome')
+    assert.ok((await ribbon.boundingBox()).height <= 64, `One command row at ${width}px`)
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       true,

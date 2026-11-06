@@ -124,10 +124,53 @@ async function exportCopy() {
   })
 }
 
-function mountToolbar() {
+const editingTools: Record<string, string> = {
+  en: 'Editing tools',
+  ko: '편집 도구',
+  ja: '編集ツール',
+  zh: '编辑工具',
+  'zh-TW': '編輯工具',
+  fr: 'Outils d’édition',
+  de: 'Bearbeitungswerkzeuge',
+  es: 'Herramientas de edición',
+  pt: 'Ferramentas de edição',
+  it: 'Strumenti di modifica',
+  nl: 'Bewerkingsgereedschap',
+  pl: 'Narzędzia edycji',
+  cs: 'Nástroje pro úpravy',
+  ru: 'Инструменты редактирования',
+  id: 'Alat penyuntingan',
+  ms: 'Alat penyuntingan',
+  ar: 'أدوات التحرير',
+  he: 'כלי עריכה',
+  hi: 'संपादन उपकरण',
+  th: 'เครื่องมือแก้ไข',
+  vi: 'Công cụ chỉnh sửa',
+}
+
+async function mountToolbar(studio: RhwpEditor) {
   document.querySelector('#host-tools')?.remove()
   const toolbar = document.createElement('nav')
   toolbar.id = 'host-tools'
+  const toggle = document.createElement('button')
+  toggle.textContent = editingTools[locale] ?? editingTools.en!
+  const update = (expanded: boolean) => toggle.setAttribute('aria-pressed', String(expanded))
+  const initial = await studio.chrome.set({ menu: false, toolbar: false })
+  update(initial.menu || initial.toolbar)
+  toggle.addEventListener('pointerdown', (event) => event.preventDefault())
+  toggle.addEventListener('click', async () => {
+    const expand = toggle.getAttribute('aria-pressed') !== 'true'
+    toggle.disabled = true
+    try {
+      const state = await studio.chrome.set({ menu: expand, toolbar: expand })
+      update(state.menu || state.toolbar)
+    } catch (error) {
+      report(error)
+    } finally {
+      toggle.disabled = false
+    }
+  })
+  toolbar.append(toggle)
   for (const [key, action] of [
     ['fileSave', () => window.everyOffice.saveDocument()],
     ['memoOpen', () => memos?.toggle()],
@@ -210,7 +253,7 @@ window.everyOffice = {
           send({ type: 'changed', revision, draft: active })
         },
       })
-      mountToolbar()
+      await mountToolbar(editor)
       const frame = editor.element.contentWindow!
       frame.addEventListener('ieum:memo-insert', () => {
         void memos?.add().catch(report)
