@@ -306,3 +306,13 @@ dialog::backdrop {
   font-size: 13px;
   font-weight: 600;
 }
+
+.toolbar.mindmap-tools {
+  flex: none;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-block: 4px;
+}
+.mindmap-tools > * {
+  flex-shrink: 0;
+}

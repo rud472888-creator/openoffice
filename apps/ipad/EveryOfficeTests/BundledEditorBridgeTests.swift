@@ -24,7 +24,7 @@ final class BundledEditorBridgeTests: XCTestCase {
 
     @MainActor
     func testPPTXEditorOpensAndSavesThroughWebKit() async throws {
-        try await exercise(resource: "PresentationEditor", kind: "pptx", template: "Blank.pptx", format: .zip)
+        try await exercise(resource: "PresentationEditor", kind: "pptx", template: "Blank.pptx", format: .zip, unchanged: true)
     }
 
     @MainActor
@@ -98,6 +98,12 @@ final class BundledEditorBridgeTests: XCTestCase {
         guard harness.readyReceived else { return }
         let payload: [String: Any] = ["name": "Native.\(kind)", "kind": kind, "base64": bytes.base64EncodedString(), "language": "en", "locale": "en"]
         harness.call("await window.everyOffice.openDocument(payload); return true;", arguments: ["payload": payload])
+        if kind == "pptx" {
+            Task { @MainActor [weak harness] in
+                try? await Task.sleep(for: .seconds(8))
+                harness?.describePresentationIfOpening()
+            }
+        }
         await fulfillment(of: [harness.opened], timeout: remaining())
         XCTAssertTrue(harness.openedReceived, "\(resource)/\(kind) opened phase: \(harness.diagnostics)")
         guard harness.openedReceived else { return }
@@ -209,6 +215,21 @@ private final class EditorHarness: NSObject, WKScriptMessageHandler, WKNavigatio
     func call(_ source: String, arguments: [String: Any] = [:]) {
         PlatformWebKit.evaluateAsync(in: webView, body: source, arguments: arguments) { [weak self] result in
             if case .failure(let error) = result { self?.fail(error.localizedDescription) }
+        }
+    }
+
+    func describePresentationIfOpening() {
+        guard !openedReceived else { return }
+        let frame = webView.frame
+        let script = """
+            const child = document.querySelector('iframe');
+            return JSON.stringify({ hidden: document.hidden, size: [innerWidth, innerHeight],
+                iframe: child?.contentDocument?.URL, canvas: child?.contentDocument?.querySelector('canvas')?.width,
+                loading: child?.contentDocument?.getElementById('deckcraft_loading')?.textContent,
+                error: document.querySelector('#error')?.textContent });
+            """
+        PlatformWebKit.evaluateAsync(in: webView, body: script) { [weak self] result in
+            self?.messages.append("Viewport \(frame) and presentation state: \(String(describing: result))")
         }
     }
 

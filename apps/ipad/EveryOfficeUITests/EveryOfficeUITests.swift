@@ -42,6 +42,7 @@ final class EveryOfficeUITests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(control.frame.height, 44)
                 XCTAssertEqual(control.frame.height, cardHeight, accuracy: 0.5)
             }
+            XCTAssertFalse(app.buttons["importDocument"].exists)
             XCTAssertTrue(app.buttons["moreFormats"].isHittable)
             attachScreenshot(app, name: orientation.isLandscape ? "Home landscape light" : "Home portrait light")
         }
@@ -88,6 +89,43 @@ final class EveryOfficeUITests: XCTestCase {
         attachScreenshot(app, name: "Search with no matching documents")
         app.buttons["Clear search"].tap()
         XCTAssertTrue(reveal(document, in: app), failureContext("Clearing search must restore the local document.", app: app))
+    }
+
+    @MainActor
+    func testHWPSystemShareActions() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = launchArguments(resetLibrary: true)
+        app.launch()
+        app.buttons["newHwp"].tap()
+        XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 40))
+        app.buttons["shareDocument"].tap()
+        let saveAs = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "Save As")).firstMatch
+        XCTAssertTrue(saveAs.waitForExistence(timeout: 10), failureContext("HWP shares the file with system destinations and offers Save As.", app: app))
+        attachScreenshot(app, name: "HWP system sharing")
+        saveAs.tap()
+        let cancel = app.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 15), failureContext("Save As must open the Files destination picker.", app: app))
+        attachScreenshot(app, name: "HWP Save As destination")
+        cancel.tap()
+    }
+
+    @MainActor
+    func testDeckCraftOpensPresentationOnIPad() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = launchArguments(resetLibrary: true)
+        app.launch()
+        app.buttons["newPresentation"].tap()
+        XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 60), failureContext("DeckCraft must load the PPTX before reporting readiness.", app: app))
+        let canvas = app.webViews.firstMatch
+        canvas.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 192, dy: 92)).tap()
+        XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
+        attachScreenshot(app, name: "DeckCraft presentation with a new slide")
+
+        app.buttons["showLibrary"].tap()
+        app.buttons["document-Untitled.pptx"].tap()
+        XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 60))
     }
 
     @MainActor
@@ -140,7 +178,7 @@ final class EveryOfficeUITests: XCTestCase {
         app.buttons["showLibrary"].tap()
         XCTAssertTrue(app.scrollViews["documentLibrary"].waitForExistence(timeout: 10), failureContext("Returning home must show the Favorites workspace.", app: app))
         XCTAssertFalse(document.exists, failureContext("Removing the favorite must remove it from the Favorites view.", app: app))
-        let recent = app.descendants(matching: .any).matching(identifier: "librarySection-recent").firstMatch
+        let recent = app.descendants(matching: .any).matching(identifier: "librarySection-all").firstMatch
         XCTAssertTrue(recent.waitForExistence(timeout: 10), failureContext("The sidebar must expose All documents after leaving the editor.", app: app))
         recent.tap()
         XCTAssertTrue(reveal(document, in: app), failureContext("Removing a favorite must preserve its file in Recent.", app: app))
@@ -282,7 +320,7 @@ final class EveryOfficeUITests: XCTestCase {
     }
 
     @MainActor
-    func testRenameDuplicateAndSwitchDocumentTabs() throws {
+    func testRenameDuplicateAndReopenFromRecentDocuments() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = launchArguments(resetLibrary: true)
@@ -305,21 +343,24 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         name.tap()
         let oldName = name.value as? String ?? "Untitled"
-        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count) + "Project notes")
+        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: oldName.count) + "Project notes\n")
         app.buttons["saveDocumentName"].tap()
         XCTAssertTrue(app.navigationBars["Project notes.txt"].waitForExistence(timeout: 10))
         app.buttons["documentActions"].tap()
         app.buttons["Duplicate"].tap()
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
-        let duplicateTab = app.buttons["tab-Project notes Copy.txt"]
-        XCTAssertTrue(duplicateTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Project notes Copy.txt"].waitForExistence(timeout: 10))
         assertSourceText("Keep this original note.", in: editor, app: app)
-        let originalTab = app.buttons["tab-Project notes.txt"]
-        if !originalTab.isHittable { app.scrollViews["documentTabs"].swipeRight() }
-        originalTab.tap()
+        app.buttons["showLibrary"].tap()
+        app.terminate()
+        app.launchArguments = launchArguments(resetLibrary: false)
+        app.launch()
+        app.buttons["librarySection-recent"].tap()
+        XCTAssertTrue(app.buttons["document-Project notes Copy.txt"].exists)
+        app.buttons["document-Project notes.txt"].tap()
         XCTAssertTrue(app.staticTexts["webEditorReady"].waitForExistence(timeout: 30))
         assertSourceText("Keep this original note.", in: editor, app: app)
-        attachScreenshot(app, name: "Renamed document and duplicate in tabs")
+        attachScreenshot(app, name: "Renamed document reopened from Recent")
     }
 
     @MainActor
@@ -336,15 +377,11 @@ final class EveryOfficeUITests: XCTestCase {
         XCTAssertTrue(input.waitForExistence(timeout: 60), failureContext("The local HTTP HWP studio and WASM input must load.", app: app))
         XCTAssertFalse(app.scrollViews["documentTabs"].exists)
         let webView = app.webViews.firstMatch
-        let tools = webView.switches["Editing tools"]
-        XCTAssertTrue(tools.waitForExistence(timeout: 10))
-        XCTAssertEqual(tools.value as? String, "0")
-        tools.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: tools)], timeout: 5), .completed)
-        attachScreenshot(app, name: "Expanded HWP editing tools")
-        tools.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '0'"), object: tools)], timeout: 5), .completed)
-        attachScreenshot(app, name: "HWP studio before canvas input")
+        XCTAssertFalse(webView.switches["Editing tools"].exists)
+        XCTAssertTrue(app.buttons["saveDocument"].exists)
+        XCTAssertTrue(app.buttons["shareDocument"].exists)
+        app.buttons["saveDocument"].tap()
+        attachScreenshot(app, name: "HWP editing commands")
         // The studio uses an IME sink. A user taps the visible page to focus it.
         webView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
         app.typeText("Evergreen note survives reopening")

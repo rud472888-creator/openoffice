@@ -127,7 +127,8 @@ window.everyOffice = {
         },
       }
       header.append(button('Save', () => window.everyOffice.saveDocument(), host))
-      root.append(header, editor)
+      if (kind !== 'xmind') root.append(header)
+      root.append(editor)
       const bytes = Uint8Array.from(atob(request.base64), (character) => character.charCodeAt(0))
       if (bytes.length > MAX_INPUT) throw new Error('The document exceeds the 32 MB iPad limit.')
       let opened: EditorView

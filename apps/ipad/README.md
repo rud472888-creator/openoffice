@@ -11,11 +11,11 @@ not included. It does not connect an account, AI service, or analytics service.
 
 ## Implemented paths
 
-- Native document library, Files import-copy, recent/favorite/search, tabs, rename, duplicate, share and guarded saving.
+- Native document library, Files import-copy, persistent recent documents in the sidebar, favorites, search, rename, duplicate, share and guarded saving.
 - Rich DOCX editing with original document preservation, review tools, tables, pictures, headers/footers, page preview, PDF/print, ODT write-back and legacy DOC import-copy.
 - Actual desktop Univer spreadsheet grid with matched IronCalc WASM formula recalculation and persisted result caches. CSV/TSV/XLS/ODS imports create separate XLSX copies.
-- Graphical PPTX shape/text/table/image editing, touch transforms, slide arrangement, undo/redo, slideshow and PDF/print.
-- Full local HWP/HWPX studio, Korean text editing, formatting, tables/pictures, memo editing, verified saves, document checks, HWP/HWPX conversion copies and PDF/print.
+- Offline DeckCraft PPTX editor with its own canvas, ribbon and slide navigation. [Build and file handling](../ipad-slides/README.md).
+- Local HWP/HWPX editing with the editing toolbar visible, a native Save button and system sharing for PDF export, print, Save As and HWP/HWPX conversion.
 - Graphical XMind, EPUB chapter editing, HTML source/live preview and the pinned offline draw.io application.
 - Desktop Markdown rich editor and TXT/JSON CodeMirror, formatting/tables/math/diagrams, source mode, search/replace, PDF/print and DOCX export.
 - Native PDF page operations, search, highlights, free-text notes, PencilKit ink and sharing/printing.
@@ -84,7 +84,7 @@ XCTest covers byte-preserving imports, duplicate filenames, restart persistence,
 favorite recovery, invalid text, import limits, save/delete guards, and unique
 note creation. Eleven actual-bundle WebKit tests exercise format opening and saving, including Korean DOCX input/save/reopen and the desktop TXT newline policy. A separate native lifecycle test covers saves requested before document loading completes.
 XCUITest checks text notes, rich DOCX and HWP canvas input across app relaunch,
-plus file rename, duplication, tabs, favorites, search, grid/list layouts, additional
+plus file rename, duplication, reopening from Recent, favorites, search, grid/list layouts, additional
 format creation, and landscape/portrait/light/dark home layouts. Screenshots and bridge diagnostics
 are attached to the result bundle.
 

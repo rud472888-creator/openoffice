@@ -87,69 +87,6 @@ body {
   flex: 1;
   min-height: 0;
 }
-#host-tools {
-  display: flex;
-  gap: 8px;
-  padding: 4px 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  box-sizing: border-box;
-  min-height: 53px;
-  overflow-x: auto;
-  flex: none;
-}
-:where(#host-tools, .memo-panel, dialog) :is(button, input, textarea) {
-  font: inherit;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 14px;
-}
-:where(#host-tools, .memo-panel, dialog) button {
-  min-height: 44px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.memo-panel {
-  position: fixed;
-  top: 53px;
-  bottom: 0;
-  right: 0;
-  width: min(350px, 90vw);
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  z-index: 5;
-  padding: 20px;
-  overflow: auto;
-  box-sizing: border-box;
-}
-.memo-panel article {
-  margin-block: 12px;
-  padding-block: 12px;
-  border-bottom: 1px solid var(--border);
-}
-.memo-panel p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-dialog {
-  width: min(480px, 85vw);
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-dialog input,
-dialog textarea {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  margin-block: 12px;
-}
-dialog textarea {
-  min-height: 150px;
-}
 body {
   color: var(--text);
   background: var(--surface);
@@ -175,45 +112,4 @@ body {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 12px;
-}
-
-#document-check-host .doc-check {
-  position: fixed;
-  top: 64px;
-  max-height: calc(100% - 80px);
-}
-#document-check-host button {
-  min-height: 44px;
-}
-
-#host-tools button {
-  flex: none;
-  border-color: transparent;
-  border-radius: 8px;
-  font-size: 13px;
-}
-#host-tools button[aria-pressed='true'] {
-  color: var(--accent-dark);
-  background: var(--accent-soft);
-  font-weight: 600;
-}
-#host-tools button:hover {
-  background: var(--hover);
-}
-:where(#host-tools, .memo-panel, dialog) :is(button, input, textarea):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-dialog {
-  box-sizing: border-box;
-  padding: 24px;
-  border-radius: 16px;
-  box-shadow: var(--shadow-menu);
-}
-dialog::backdrop {
-  background: var(--color-bg-overlay);
-}
-
-#host-tools button[aria-pressed='true']:hover:not(:disabled) {
-  background: var(--accent-soft);
 }

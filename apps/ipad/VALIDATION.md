@@ -1,6 +1,14 @@
 # Validation evidence
 
-Current validation checkpoint: 2026-11-06, including a local physical iPad run. The redesign verification passed **58 distinct tests: 50 unit tests and 8 UI tests**, across the main run and focused reruns. This records the tested scope, not complete desktop parity.
+The current checkpoint covers sidebar navigation, native sharing and the DeckCraft PPTX editor on the M4 iPad. The earlier redesign and simulator results below describe their respective builds.
+
+## Sidebar, sharing and DeckCraft
+
+The sidebar now keeps the 50 most recently opened document IDs in opening order. Device UI tests exercised relaunch, favorites, reopening a renamed document from Recent and the home layout without a duplicate import button. HWP editing commands are visible, the formatting row is hidden, and the native share sheet offers other apps, PDF export, print, Save As and format conversion. Save As was exercised through the real system sheet into the Files destination picker. XMind uses one scrollable toolbar and displays a sheet chooser for multi-sheet maps.
+
+The iPad presentation route now uses DeckCraft. Chromium exercised an actual New Slide command and a Korean PPTX round trip. On the M4 iPad, the editor opened the template, added a slide, saved and reopened. A copy of the persisted PPTX from the isolated UI test Library contained two slide XML parts. The original-byte WebKit test also passed. The final graphical editor uses its upstream English ribbon.
+
+Local evidence includes `Navigation-first.xcresult`, `Navigation-share-final.xcresult` and `Navigation-deck-final.xcresult`. The first run exposed a share dismissal race and one presentation-opening timeout in the test harness. Both cases passed focused reruns. All 50 native unit tests and the HWP editing and sharing UI tests passed in the subsequent broader run. That run was stopped when XCTest repeatedly failed to tap Save in the rename sheet. The final focused run also passed DeckCraft opening, the renamed-document/Recent flow and the two-orientation home layout. The intermediate interrupted bundle is retained separately.
 
 ## Editor toolbar and card refinement: 2026-11-06
 

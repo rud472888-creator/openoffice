@@ -232,21 +232,22 @@ final class DocumentLibraryTests: XCTestCase {
     }
 
     @MainActor
-    func testTabsDoNotDuplicateAndClosingNeverDeletesDocument() throws {
+    func testRecentDocumentsKeepOpeningOrderAcrossRelaunchAndClose() throws {
         let library = makeLibrary()
         let first = try library.create(markdown: false)
         let second = try library.create(markdown: true)
         library.selectedID = first.id
         library.selectedID = second.id
         library.selectedID = first.id
-        XCTAssertEqual(library.openDocumentIDs, [first.id, second.id])
+        XCTAssertEqual(library.recentDocuments.map(\.id), [first.id, second.id])
+        XCTAssertEqual(makeLibrary().recentDocuments.map(\.id), [first.id, second.id])
         library.savingDocumentIDs.insert(first.id)
-        XCTAssertThrowsError(try library.closeTab(first))
+        XCTAssertThrowsError(try library.closeDocument(first))
         library.savingDocumentIDs.remove(first.id)
-        try library.closeTab(first)
-        XCTAssertEqual(library.selectedID, second.id)
+        try library.closeDocument(first)
+        XCTAssertNil(library.selectedID)
         XCTAssertTrue(FileManager.default.fileExists(atPath: first.url.path))
-        try library.closeTab(second)
+        try library.closeDocument(second)
         XCTAssertNil(library.selectedID)
         XCTAssertEqual(library.documents.count, 2)
     }

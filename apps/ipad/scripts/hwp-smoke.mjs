@@ -96,13 +96,9 @@ try {
   assert.deepEqual(Buffer.from(unchanged.base64, 'base64'), original)
   const frame = page.frames().find((candidate) => candidate.url().includes('/studio/'))
   assert.ok(frame)
-  const tools = page.getByRole('button', { name: '편집 도구', exact: true })
-  const formatting = frame.locator('#style-bar')
-  await formatting.waitFor({ state: 'hidden' })
-  await tools.click()
-  await formatting.waitFor({ state: 'visible' })
-  await tools.click()
-  await formatting.waitFor({ state: 'hidden' })
+  await frame.locator('#icon-toolbar').waitFor({ state: 'visible' })
+  await frame.locator('#style-bar').waitFor({ state: 'hidden' })
+  assert.equal(await page.locator('#host-tools').count(), 0)
   await frame.locator('textarea[aria-label]').focus()
   await page.keyboard.insertText('한글 편집 저장 검증')
   await page.waitForFunction(() =>
@@ -133,25 +129,16 @@ try {
     changed.base64,
   )
   await page.screenshot({ path: fileURLToPath(new URL('hwp-edited.png', output)) })
-  const currentFrame = page.frames().find((candidate) => candidate.url().includes('/studio/'))
-  await currentFrame.locator('textarea[aria-label]').focus()
-  await page.getByRole('button', { name: '메모', exact: true }).click()
-  await page.getByRole('button', { name: '메모 넣기', exact: true }).click()
-  await page.locator('dialog textarea').fill('보존할 한글 메모')
-  await page.locator('dialog input').fill('테스트')
-  await page.locator('dialog button').first().click()
-  await page.locator('dialog').waitFor({ state: 'detached' })
-  await page.evaluate(() => {
-    window.nativeMessages = []
-  })
-  await page.evaluate(() => window.everyOffice.saveDocument())
-  await page.waitForFunction(() => window.nativeMessages.some((message) => message.type === 'save'))
-  const memoSave = await page.evaluate(() =>
-    window.nativeMessages.find((message) => message.type === 'save'),
-  )
-  const memoDocument = new HwpDocument(Buffer.from(memoSave.base64, 'base64'))
+  const memoDocument = new HwpDocument(Buffer.from(changed.base64, 'base64'))
   let hwpx
   try {
+    memoDocument.insertMemo(
+      0,
+      0,
+      0,
+      1,
+      JSON.stringify({ text: '보존할 한글 메모', author: '테스트' }),
+    )
     assert.ok(memoDocument.getMemoList().includes('보존할 한글 메모'))
     hwpx = memoDocument.exportHwpx()
   } finally {
@@ -181,16 +168,12 @@ try {
   } finally {
     hwpxDocument.free()
   }
-  await page.getByRole('button', { name: '문서 점검', exact: true }).click()
-  await page.locator('.doc-check-source').waitFor()
-  assert.equal(await page.locator('.doc-check-failed').count(), 0)
-  await page.locator('.doc-check-close').click()
-  await page.locator('[data-action="convert-copy"]').click()
+  await page.evaluate(() => window.everyOffice.performAction('convert'))
   await page.waitForFunction(() =>
-    window.nativeMessages.some((message) => message.type === 'importCopy'),
+    window.nativeMessages.some((message) => message.type === 'saveAsFile'),
   )
   const converted = await page.evaluate(() =>
-    window.nativeMessages.filter((message) => message.type === 'importCopy').at(-1),
+    window.nativeMessages.filter((message) => message.type === 'saveAsFile').at(-1),
   )
   assert.equal(converted.kind, 'hwp')
   const convertedDocument = new HwpDocument(Buffer.from(converted.base64, 'base64'))
@@ -200,9 +183,13 @@ try {
   } finally {
     convertedDocument.free()
   }
-  await page.getByRole('button', { name: /PDF/ }).click()
+  await page.evaluate(() => window.everyOffice.performAction('pdf'))
   await page.waitForFunction(() =>
     window.nativeMessages.some((message) => message.type === 'exportPDF'),
+  )
+  await page.evaluate(() => window.everyOffice.performAction('print'))
+  await page.waitForFunction(() =>
+    window.nativeMessages.some((message) => message.type === 'printPages'),
   )
   const printJob = await page.evaluate(() =>
     window.nativeMessages.find((message) => message.type === 'exportPDF'),
@@ -251,10 +238,9 @@ try {
           'guarded HWP save',
           'engine read-back',
           'reopen',
-          'memo create and preservation',
+          'existing memo preservation',
           'HWPX edit and save',
           'PDF page bridge',
-          'shared desktop document checks',
           'verified HWPX-to-HWP import copy',
           'overlapping saves and input revision preservation',
         ],

@@ -1,0 +1,108 @@
+diff --git a/apps/deckcraft-web/src/host.rs b/apps/deckcraft-web/src/host.rs
+index d264b13..770901e 100644
+--- a/apps/deckcraft-web/src/host.rs
++++ b/apps/deckcraft-web/src/host.rs
+@@ -33,7 +33,7 @@
+ //! the first file the host sends; the host guards leaving the page, and `?author=` names the user
+ //! for comments.
+
+-use std::cell::RefCell;
++use std::cell::{Cell, RefCell};
+ use std::rc::Rc;
+
+ use craft_web_host::web::{FileData, Host, Message};
+@@ -54,9 +54,29 @@ const MAX_OPEN_BYTES: f64 = 2_147_483_648.0;
+ /// The longest user name taken from `?author=` (the preferences' own limit).
+ const MAX_AUTHOR_CHARS: usize = 256;
+
++// The iPad host can request a save when an edit lands or the scene closes.
++// Execute on the next egui pass, where the actual session is available.
++thread_local! {
++    static SAVE_REQUEST: Cell<bool> = const { Cell::new(false) };
++    static REPAINT: RefCell<Option<egui::Context>> = const { RefCell::new(None) };
++}
++
++#[wasm_bindgen::prelude::wasm_bindgen]
++pub fn everyoffice_request_save() {
++    SAVE_REQUEST.with(|request| request.set(true));
++    REPAINT.with(|ctx| { if let Some(ctx) = ctx.borrow().as_ref() { ctx.request_repaint(); } });
++}
++
++fn signal(name: &str) {
++    if let (Some(window), Ok(event)) = (web_sys::window(), web_sys::Event::new(name)) {
++        let _ = window.dispatch_event(&event);
++    }
++}
++
+ #[derive(Clone)]
+ pub struct Bridge {
+     host: Rc<Host>,
++    source_uid: Rc<Cell<Option<u64>>>,
+     /// Files the host sent (the name, if it sent one), waiting for the next frame.
+     opened: Rc<RefCell<Vec<(Option<String>, Vec<u8>)>>>,
+ }
+@@ -71,12 +91,13 @@ impl Bridge {
+         if host.mode() == craft_web_host::Mode::Parent && web_sys::window()?.location().origin().ok()? == "null" {
+             return None;
+         }
+-        Some(Self { host: Rc::new(host), opened: Rc::default() })
++        Some(Self { host: Rc::new(host), source_uid: Rc::default(), opened: Rc::default() })
+     }
+
+     /// Hand saved and exported files to the host instead of downloading them, and hear the files
+     /// it sends.
+     pub fn connect(&self, services: &mut Services, ctx: egui::Context) {
++        REPAINT.with(|value| *value.borrow_mut() = Some(ctx.clone()));
+         self.listen(ctx);
+         let bridge = self.clone();
+         services.host_save = Some(Box::new(move |name: &str, bytes: &[u8], save_as: bool| bridge.post_save(name, bytes, save_as)));
+@@ -111,6 +132,25 @@ impl Bridge {
+         let opened = std::mem::take(&mut *self.opened.borrow_mut());
+         for (name, bytes) in opened {
+             app.open_from_host(name.as_deref(), &bytes);
++            if let Some(doc) = app.session.active()
++                && name.is_some() && doc.path.as_deref() == name.as_deref() {
++                self.source_uid.set(Some(doc.uid));
++                if web_sys::window().is_some_and(|window| window.location().search().is_ok_and(|query| query.split('&').any(|flag| flag == "readonly"))) {
++                    let _ = app.run("view.reading", serde_json::json!({}));
++                }
++                signal("everyoffice-opened");
++            } else {
++                let _ = self.host.post_failed("Unable to open the original PPTX for editing", None);
++            }
++        }
++        if SAVE_REQUEST.with(|request| request.replace(false)) {
++            if self.source_uid.get().is_some() && app.session.active().map(|doc| doc.uid) == self.source_uid.get() {
++                if let Err(error) = app.run("file.save", serde_json::json!({})) {
++                    let _ = self.host.post_failed(&error, None);
++                }
++            } else {
++                let _ = self.host.post_failed("The active presentation is not the original file", None);
++            }
+         }
+     }
+
+diff --git a/crates/fonts/build.rs b/crates/fonts/build.rs
+index 6cf744f..7e5da9f 100644
+--- a/crates/fonts/build.rs
++++ b/crates/fonts/build.rs
+@@ -149,7 +149,8 @@ fn manifest(dir: &std::path::Path, manifest: &std::path::Path, wasm: bool) -> Re
+         if is_excluded_family(family) {
+             continue;
+         }
+-        if wasm && !matches!((*family, *style), ("BIZ UDPGothic", "Regular") | ("Inter", "Regular" | "Bold" | "Variable")) {
++        // EveryOffice uses the web build as its offline iPad editor, including Korean slides.
++        if wasm && !matches!((*family, *style), ("BIZ UDPGothic" | "NanumGothic", "Regular") | ("Carlito", _) | ("Inter", "Regular" | "Bold" | "Variable")) {
+             continue;
+         }
+         let path = dir.join(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
+@@ -179,6 +180,9 @@ fn validate_required_faces(faces: &[(String, String)], wasm: bool) -> Result<(),
+     let biz_bold = wasm || has("BIZ UDPGothic", "Bold");
+     let chinese = wasm || has("LXGW WenKai Lite", "Regular");
+     let mut missing = Vec::new();
++    if wasm && !has("NanumGothic", "Regular") {
++        missing.push("NanumGothic Regular");
++    }
+     if !inter {
+         missing.push("Inter Regular/Bold (or Inter Variable)");
+     }

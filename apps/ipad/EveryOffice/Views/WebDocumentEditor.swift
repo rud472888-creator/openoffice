@@ -26,8 +26,9 @@ struct WebDocumentEditor: View {
             .background(OfficeTheme.surface)
         }
         .toolbar {
-            ToolbarItem(placement: .secondaryAction) {
+            ToolbarItem(placement: ["hwp", "hwpx", "xmind"].contains(kind ?? "") ? .primaryAction : .secondaryAction) {
                 Button { saveRequest += 1 } label: { Label("Save", systemImage: "square.and.arrow.down") }
+                    .accessibilityIdentifier("saveDocument")
                     .keyboardShortcut("s", modifiers: .command)
             }
         }
@@ -198,6 +199,13 @@ struct OfficeWebView: UIViewRepresentable {
                     library.generatedFileCompletion = { [weak self] completed in self?.acknowledgeExport(requestID, completed: completed) }
                     library.generatedPDF = presentation
                 } catch { acknowledgeExport(requestID, completed: false, error: error.localizedDescription); library.present(error) }
+            case "saveAsFile":
+                guard ["hwp", "hwpx"].contains(kind ?? ""), let filename = body["name"] as? String,
+                      (filename as NSString).lastPathComponent == filename,
+                      ["hwp", "hwpx"].contains((filename as NSString).pathExtension.lowercased()),
+                      let base64 = body["base64"] as? String, base64.utf8.count <= Int(DocumentLibrary.maximumImportBytes * 4 / 3 + 4),
+                      let data = Data(base64Encoded: base64) else { library.present(LibraryError.invalidFile); return }
+                library.namedExport = NamedDocumentExport(filename: filename, data: data)
             case "importCopy":
                 let requestID = body["requestId"] as? String
                 do {
@@ -249,6 +257,14 @@ struct OfficeWebView: UIViewRepresentable {
             guard let data = try? JSONSerialization.data(withJSONObject: [requestID, outcome]),
                   let arguments = String(data: data, encoding: .utf8) else { return }
             webView?.evaluateJavaScript("void window.everyOffice?.didExport?.(...\(arguments))", completionHandler: nil)
+        }
+
+        func performShareCommand(_ command: HWPShareCommand) {
+            guard let webView, ["hwp", "hwpx"].contains(kind ?? "") else { return }
+            PlatformWebKit.evaluateAsync(in: webView, body: "await window.everyOffice.performAction(action); return true",
+                arguments: ["action": command.rawValue]) { [weak self] result in
+                    if case .failure(let error) = result { self?.library.present(error) }
+                }
         }
 
         func requestSave() {

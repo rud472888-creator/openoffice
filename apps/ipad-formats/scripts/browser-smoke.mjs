@@ -178,6 +178,9 @@ try {
   }, longPages.at(-1))
   assert.ok(lastPosition.top >= -1 && lastPosition.top < 842.25, JSON.stringify(lastPosition))
   await open('xmind')
+  assert.equal(await page.locator('#app > header').count(), 0)
+  const sheetChooser = page.getByLabel('Mind map sheets', { exact: true })
+  assert.equal(await sheetChooser.isVisible(), false)
   await page.locator('me-tpc').first().click()
   await page.getByRole('button', { name: 'Subtopic', exact: true }).click()
   await page.locator('#input-box').fill('Graphical branch')
@@ -189,6 +192,12 @@ try {
   await exportFile('Export as Image (PNG)…', '.png')
   await exportFile('Export as Markdown Outline…', '.md')
   await page.screenshot({ path: new URL('build/xmind.png', root).pathname })
+
+  await page.getByRole('button', { name: 'Add sheet', exact: true }).click()
+  await page.locator('dialog textarea').fill('Second sheet')
+  await page.getByRole('button', { name: 'Apply', exact: true }).click()
+  await sheetChooser.waitFor({ state: 'visible' })
+  assert.equal(await sheetChooser.locator('option').count(), 2)
 
   await open('epub')
   const paragraph = page.frameLocator('iframe').locator('p[contenteditable="true"]').first()

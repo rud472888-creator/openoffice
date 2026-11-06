@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self' data: blob:; style-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<style>html,body,canvas{width:100%;height:100%;margin:0;display:block;overflow:hidden}#deckcraft_loading{position:absolute;inset:0;display:grid;place-items:center;font:16px system-ui;pointer-events:none}</style>
+</head><body><canvas id="deckcraft_canvas"></canvas><div id="deckcraft_loading">DeckCraft…</div>
+<script type="module">
+import init, * as bindings from './deckcraft-web.js'
+window.wasmBindings = bindings
+init().catch(error => parent.postMessage({type:'deckcraft:failed',error:String(error)}, location.origin))
+</script></body></html>

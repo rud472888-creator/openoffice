@@ -7,22 +7,27 @@ final class DocumentLibrary {
     private(set) var documents: [OfficeDocument] = []
     var selectedID: UUID? {
         didSet {
-            if let selectedID, documents.contains(where: { $0.id == selectedID }), !openDocumentIDs.contains(selectedID) {
-                openDocumentIDs.append(selectedID)
+            if let selectedID, documents.contains(where: { $0.id == selectedID }) {
+                recentIDs.removeAll { $0 == selectedID }
+                recentIDs.insert(selectedID, at: 0)
+                if recentIDs.count > 50 { recentIDs.removeLast() }
+                do { try JSONEncoder().encode(recentIDs).write(to: recentURL, options: .atomic) }
+                catch { present(error) }
             }
         }
     }
-    private(set) var openDocumentIDs: [UUID] = []
     var errorMessage: String?
     var savingDocumentIDs: Set<UUID> = []
     var readyDocumentIDs: Set<UUID> = []
     var preparingPDF = false
     var generatedPDF: GeneratedPDFPresentation?
+    var namedExport: NamedDocumentExport?
     @ObservationIgnored var generatedFileCompletion: ((Bool) -> Void)?
     private(set) var textDrafts: [UUID: String] = [:]
     @ObservationIgnored var pendingSaveActions: [UUID: () -> Void] = [:]
     private let directory: URL
     private let fileManager: FileManager
+    private var recentIDs: [UUID] = []
     private var favorites: Set<UUID> = []
     private var readingMetadata = EditorReadingMetadata()
     nonisolated static let maximumImportBytes: Int64 = 100 * 1_024 * 1_024
@@ -50,14 +55,18 @@ final class DocumentLibrary {
                 favorites = Set((try? JSONDecoder().decode([UUID].self, from: data)) ?? [])
             }
             if let data = try? Data(contentsOf: readingMetadataURL), let stored = try? JSONDecoder().decode(EditorReadingMetadata.self, from: data) { readingMetadata = stored }
+            if let data = try? Data(contentsOf: recentURL) {
+                recentIDs = (try? JSONDecoder().decode([UUID].self, from: data)) ?? []
+            }
             try reload()
         } catch { present(error) }
     }
 
+    private var recentURL: URL { directory.appendingPathComponent(".recent-documents.json") }
+    var recentDocuments: [OfficeDocument] { recentIDs.compactMap { id in documents.first { $0.id == id } } }
     private var favoritesURL: URL { directory.appendingPathComponent("favorites.json") }
     private var readingMetadataURL: URL { directory.appendingPathComponent(".reading-state.json") }
     var selectedDocument: OfficeDocument? { documents.first { $0.id == selectedID } }
-    var openDocuments: [OfficeDocument] { openDocumentIDs.compactMap { id in documents.first { $0.id == id } } }
 
     func present(_ error: Error) { errorMessage = error.localizedDescription }
     func retryPendingSaves() { for action in Array(pendingSaveActions.values) { action() } }
@@ -72,13 +81,9 @@ final class DocumentLibrary {
         readingMetadata = updated
     }
 
-    func closeTab(_ document: OfficeDocument) throws {
+    func closeDocument(_ document: OfficeDocument) throws {
         guard !savingDocumentIDs.contains(document.id) else { throw LibraryError.pendingSave }
-        guard let index = openDocumentIDs.firstIndex(of: document.id) else { return }
-        openDocumentIDs.remove(at: index)
-        if selectedID == document.id {
-            selectedID = openDocumentIDs.isEmpty ? nil : openDocumentIDs[min(index, openDocumentIDs.count - 1)]
-        }
+        if selectedID == document.id { selectedID = nil }
     }
 
     @discardableResult
@@ -270,7 +275,7 @@ final class DocumentLibrary {
         guard !savingDocumentIDs.contains(document.id) else { throw LibraryError.pendingSave }
         guard documents.contains(where: { $0.id == document.id && $0.url == document.url }) else { throw LibraryError.missingDocument }
         try fileManager.removeItem(at: document.url.deletingLastPathComponent())
-        try closeTab(document)
+        try closeDocument(document)
         try reload()
     }
 }

@@ -36,7 +36,7 @@ export async function mindmapView(bytes: Uint8Array, host: EditorHost): Promise<
   let controller: MapController | undefined
   let key = session.tabs()[0]!.key
   const toolbar = element('div')
-  toolbar.className = 'toolbar'
+  toolbar.className = 'toolbar mindmap-tools'
   const tabs = element('select')
   tabs.setAttribute('aria-label', 'Mind map sheets')
   const card = element('div')
@@ -50,6 +50,7 @@ export async function mindmapView(bytes: Uint8Array, host: EditorHost): Promise<
   }
   const unsubscribe = session.subscribe(mark)
   const refreshTabs = () => {
+    tabs.hidden = session.tabs().length < 2
     tabs.replaceChildren()
     for (const tab of session.tabs()) {
       const option = element('option', tab.title)

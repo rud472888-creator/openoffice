@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Bindable var library: DocumentLibrary
-    @State private var section: LibrarySection = .recent
+    @State private var section: LibrarySection = .all
     @State private var search = ""
     @State private var importing = false
     @State private var showingAbout = false
@@ -14,7 +14,7 @@ struct LibraryView: View {
     @AppStorage("libraryUsesGrid") private var usesGrid = true
 
     private var filteredDocuments: [OfficeDocument] {
-        library.documents.filter { document in
+        (section == .recent ? library.recentDocuments : library.documents).filter { document in
             (section != .favorites || document.isFavorite) &&
             (search.isEmpty || document.filename.localizedStandardContains(search))
         }
@@ -44,18 +44,6 @@ struct LibraryView: View {
                                 .labelStyle(.titleAndIcon)
                                 .font(.caption).foregroundStyle(OfficeTheme.secondary)
                         }
-                        ToolbarItem(placement: .primaryAction) {
-                            Button { importing = true } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "square.and.arrow.down")
-                                    Text("Import")
-                                }
-                                    .font(.subheadline.weight(.semibold))
-                                    .padding(.horizontal, 8).frame(minHeight: 44)
-                            }
-                            .buttonStyle(.borderedProminent).tint(OfficeTheme.accent)
-                            .accessibilityIdentifier("importDocument")
-                        }
                     }
             }
         }
@@ -69,6 +57,11 @@ struct LibraryView: View {
             perform {
                 for url in try result.get() { library.selectedID = try library.importDocument(from: url).id }
             }
+        }
+        .fileExporter(isPresented: Binding(get: { library.namedExport != nil }, set: { if !$0 { library.namedExport = nil } }),
+                      document: library.namedExport, contentType: library.namedExport?.contentType ?? .data,
+                      defaultFilename: library.namedExport?.filename) { result in
+            if case .failure(let error) = result { library.present(error) }
         }
         .alert("Unable to complete", isPresented: Binding(get: { library.errorMessage != nil }, set: { if !$0 { library.errorMessage = nil } })) {
             Button("OK", role: .cancel) { library.errorMessage = nil }
@@ -105,8 +98,10 @@ struct LibraryView: View {
                 .tracking(-1).padding(.horizontal, 24).padding(.top, 34).padding(.bottom, 36)
 
             VStack(spacing: 6) {
-                sidebarItem("All documents", symbol: "square.grid.2x2", destination: .recent,
+                sidebarItem("All documents", symbol: "square.grid.2x2", destination: .all,
                             count: library.documents.count)
+                sidebarItem("Recent documents", symbol: "clock", destination: .recent,
+                            count: library.recentDocuments.count)
                 sidebarItem("Favorites", symbol: "star", destination: .favorites,
                             count: library.documents.filter(\.isFavorite).count)
             }
@@ -149,7 +144,7 @@ struct LibraryView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(OfficePressStyle())
-        .accessibilityIdentifier(destination == .recent ? "librarySection-recent" : "librarySection-favorites")
+        .accessibilityIdentifier("librarySection-\(destination.rawValue)")
         .accessibilityAddTraits(section == destination ? .isSelected : [])
     }
 
@@ -158,7 +153,7 @@ struct LibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 36) {
                     workspaceHeader(wide: geometry.size.width > 740)
-                    if section == .recent && search.isEmpty { creationShelf }
+                    if section == .all && search.isEmpty { creationShelf }
                     documentsSection
                 }
                 .frame(maxWidth: 1180, alignment: .leading)
@@ -188,7 +183,7 @@ struct LibraryView: View {
     }
 
     private var workspaceTitle: some View {
-        Text(LocalizedStringKey(section == .favorites ? "Favorites" : "Documents"))
+        Text(LocalizedStringKey(section == .favorites ? "Favorites" : section == .recent ? "Recent documents" : "Documents"))
             .font(.largeTitle.weight(.semibold)).tracking(-0.8)
             .foregroundStyle(OfficeTheme.ink)
             .accessibilityAddTraits(.isHeader)
@@ -245,7 +240,7 @@ struct LibraryView: View {
     private var documentsSection: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 10) {
-                Text(LocalizedStringKey(section == .favorites ? "Favorites" : "Recent documents"))
+                Text(LocalizedStringKey(section == .all ? "All documents" : "Documents"))
                     .font(.title3.weight(.semibold))
                 Text(filteredDocuments.count, format: .number)
                     .font(.caption.monospacedDigit()).foregroundStyle(OfficeTheme.secondary)
@@ -341,7 +336,7 @@ struct LibraryView: View {
     }
 }
 
-private enum LibrarySection: Hashable { case recent, favorites }
+private enum LibrarySection: String { case all, recent, favorites }
 
 private struct AdditionalTemplate: Identifiable {
     let ext: String

@@ -107,74 +107,6 @@ try {
       fullPage: true,
     })
   }
-  for (const [kind, resource, part, selector] of [
-    ['pptx', 'PresentationEditor', 'ppt/slides/slide1.xml', '.run-editor textarea:not([readonly])'],
-  ]) {
-    console.log('Testing', kind)
-    html = await readFile(new URL(`apps/ipad/EveryOffice/Resources/${resource}/index.html`, root))
-    await page.setViewportSize({ width: 1024, height: 768 })
-    await page.goto(address)
-    await page.waitForFunction(() =>
-      window.nativeMessages.some((message) => message.type === 'ready'),
-    )
-    const base64 = (
-      await readFile(new URL(`apps/ipad/EveryOffice/Resources/Templates/Blank.${kind}`, root))
-    ).toString('base64')
-    await page.evaluate(
-      async ({ kind, base64 }) => {
-        await window.everyOffice.openDocument({
-          name: `한글 문서.${kind}`,
-          kind,
-          language: 'ko',
-          locale: 'ko',
-          base64,
-        })
-      },
-      { kind, base64 },
-    )
-    if (kind === 'pptx') await page.locator('.slide-canvas [data-element="0"]').click()
-    await page.locator(selector).first().fill(`every office ${kind} 한글 검증`)
-    await page.evaluate(async () => {
-      await window.everyOffice.saveDocument()
-    })
-    await page.waitForFunction(() =>
-      window.nativeMessages.some((message) => message.type === 'save'),
-    )
-    const saved = await page.evaluate(() =>
-      window.nativeMessages.filter((message) => message.type === 'save').at(-1),
-    )
-    const archive = await JSZip.loadAsync(Buffer.from(saved.base64, 'base64'))
-    assert.ok((await archive.file(part).async('string')).includes(`every office ${kind} 한글 검증`))
-    await page.evaluate(
-      async ({ kind, base64 }) => {
-        await window.everyOffice.openDocument({
-          name: `다시 열기.${kind}`,
-          kind,
-          language: 'ko',
-          locale: 'ko',
-          base64,
-        })
-      },
-      { kind, base64: saved.base64 },
-    )
-    if (kind === 'pptx') await page.locator('.slide-canvas [data-element="0"]').click()
-    assert.equal(
-      await page.locator(selector).first().inputValue(),
-      `every office ${kind} 한글 검증`,
-    )
-    for (const width of [1024, 390]) {
-      await page.setViewportSize({ width, height: 768 })
-      assert.equal(
-        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-        true,
-        `${kind}: no outer overflow at ${width}px`,
-      )
-      await page.screenshot({
-        path: fileURLToPath(new URL(`${kind}-${width}.png`, output)),
-        fullPage: true,
-      })
-    }
-  }
   assert.deepEqual(exceptions, [])
   assert.deepEqual(remoteRequests, [])
   await writeFile(
@@ -188,7 +120,7 @@ try {
           'offline bundles',
           'native bridges',
           'Korean text edit',
-          'DOCX/PPTX save and reopen',
+          'DOCX save and reopen',
           'responsive overflow',
           'no network requests',
           'no page exceptions',
@@ -199,7 +131,7 @@ try {
     ),
   )
   console.log(
-    'PASS: offline DOCX/PPTX bridges, edit/save/reopen, tablet and narrow layout; no browser errors or network requests.',
+    'PASS: offline DOCX bridges, edit/save/reopen, tablet and narrow layout; no browser errors or network requests.',
   )
 } finally {
   await browser.close()

@@ -5,16 +5,14 @@
   "type": "module",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "node --import tsx scripts/generate-copy.ts && vite build && node scripts/bundle.mjs",
+    "build": "vite build && node scripts/bundle.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "node scripts/browser-smoke.mjs"
   },
   "dependencies": {
     "@genoffice/i18n": "*",
-    "@genoffice/pptx-render": "*",
     "@genoffice/zip-gate": "*",
-    "fast-xml-parser": "^5.3.4",
     "jszip": "^3.10.1"
   },
   "devDependencies": {

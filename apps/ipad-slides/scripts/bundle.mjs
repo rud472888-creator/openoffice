@@ -1,17 +1,31 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
+import { mkdir, readFile, writeFile, cp, rm } from 'node:fs/promises'
+import JSZip from 'jszip'
 
-const root = new URL('../', import.meta.url)
-const script = (await readFile(new URL('dist/editor.js', root), 'utf8')).replace(
-  /<\/script/gi,
-  '<\\/script',
+const vendor = new URL('../../../vendor/deckcraft/', import.meta.url)
+const root = new URL('../../ipad/EveryOffice/Resources/PresentationEditor/', import.meta.url)
+const archive = await readFile(new URL('runtime.zip', vendor))
+if (
+  createHash('sha256').update(archive).digest('hex') !==
+  (await readFile(new URL('runtime.sha256', vendor), 'utf8')).trim()
 )
-const style = await readFile(new URL('dist/ipad-slides.css', root), 'utf8')
-const output = new URL('../../ipad/EveryOffice/Resources/PresentationEditor/', import.meta.url)
-await mkdir(output, { recursive: true })
+  throw new Error('Unexpected DeckCraft runtime')
+const files = await JSZip.loadAsync(archive, { checkCRC32: true })
+await rm(root, { recursive: true, force: true })
+const runtime = new URL('deckcraft/', root)
+await mkdir(runtime, { recursive: true })
+for (const entry of Object.values(files.files)) {
+  if (entry.dir) continue
+  const target = new URL(entry.name, runtime)
+  if (!target.href.startsWith(runtime.href)) throw new Error('Invalid DeckCraft asset path')
+  await mkdir(new URL('.', target), { recursive: true })
+  await writeFile(target, await entry.async('nodebuffer'))
+}
+for (const file of ['index.html', 'NOTICE', 'ATTRIBUTION.md', 'LICENSE-APACHE', 'LICENSE-MIT'])
+  await cp(new URL(file, vendor), new URL(file, runtime))
+await cp(new URL('../dist/editor.js', import.meta.url), new URL('editor.js', root))
+await cp(new URL('../dist/ipad-slides.css', import.meta.url), new URL('editor.css', root))
 await writeFile(
-  new URL('index.html', output),
-  `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; font-src data:; base-uri 'none'; form-action 'none'"><title>Presentation</title><style>${style}</style></head><body><div id="app"></div><script>${script}</script></body></html>`,
+  new URL('index.html', root),
+  `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'"><link rel="stylesheet" href="editor.css"><title>DeckCraft</title></head><body><div id="app"></div><p role="alert" id="error"></p><script src="editor.js"></script></body></html>`,
 )
-console.log(`Bundled offline presentation editor: ${fileURLToPath(new URL('index.html', output))}`)

@@ -1,12 +1,10 @@
 import { defineConfig } from 'vite'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createPresentationTemplate } from './scripts/template'
-import { portablePptxXml } from './scripts/portable-pptx'
 
 export default defineConfig({
   base: './',
   plugins: [
-    portablePptxXml(),
     {
       name: 'presentation-template',
       async closeBundle() {

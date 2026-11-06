@@ -3,11 +3,9 @@ import { createAgentBridge } from '../../hwp/src/renderer/ai/agent-bridge'
 import { seededStudioSettings } from '../../hwp/src/renderer/studio-settings'
 import type { SaveEditorPort } from '../../hwp/src/renderer/save-flow'
 import { HwpSession, SaveRefused } from './session'
-import { mountMemos } from './memos'
 import { initializeHwpCore } from './browser-memos'
 import { convertHwpSnapshot } from './convert'
 import { gatherPrintJob } from '../../hwp/src/renderer/print-flow'
-import { closeDocumentCheck, toggleDocumentCheck } from './document-check'
 import './style.css'
 
 type Payload = { name: string; base64: string; kind: string; language?: string; locale?: string }
@@ -17,6 +15,7 @@ declare global {
     everyOffice: {
       openDocument(payload: Payload): Promise<void>
       saveDocument(): Promise<void>
+      performAction(action: 'pdf' | 'print' | 'convert'): Promise<void>
       didSave(revision: number): Promise<void>
     }
   }
@@ -51,7 +50,6 @@ let acknowledged = 0
 let fileName = ''
 let saving = false
 let loading = false
-let memos: ReturnType<typeof mountMemos> | undefined
 let acknowledging: Promise<void> = Promise.resolve()
 let timer: ReturnType<typeof setTimeout> | undefined
 let saveJobs: Promise<void> = Promise.resolve()
@@ -68,12 +66,10 @@ function changed() {
   revision++
   send({ type: 'changed', revision, draft: true })
   clearTimeout(timer)
-  if (!memos?.editing)
-    timer = setTimeout(() => send({ type: 'changed', revision, draft: false }), 1200)
+  timer = setTimeout(() => send({ type: 'changed', revision, draft: false }), 1200)
 }
 
 async function print(mode: 'exportPDF' | 'printPages') {
-  if (memos?.editing) throw new Error(text('memoSaveBlocked'))
   await bridge.setMemoLock(true)
   try {
     const job = await gatherPrintJob(bridge, 'pdf', (_done, total) => {
@@ -97,7 +93,6 @@ async function exportCopy() {
   return serializeSave(async () => {
     await acknowledging
     if (!session || !editor) return
-    if (memos?.editing) throw new Error(text('memoSaveBlocked'))
     if (session.tracked) throw new SaveRefused('saveTracked')
     const port = savePort()
     if (await port.isPasswordProtected()) throw new SaveRefused('saveProtected')
@@ -113,7 +108,7 @@ async function exportCopy() {
       const format = session.format === 'hwp' ? 'hwpx' : 'hwp'
       const bytes = await convertHwpSnapshot(snapshot, format)
       send({
-        type: 'importCopy',
+        type: 'saveAsFile',
         name: fileName.replace(/\.hwpx?$/i, `.${format}`),
         kind: format,
         base64: encode(bytes),
@@ -122,76 +117,6 @@ async function exportCopy() {
       saving = false
     }
   })
-}
-
-const editingTools: Record<string, string> = {
-  en: 'Editing tools',
-  ko: '편집 도구',
-  ja: '編集ツール',
-  zh: '编辑工具',
-  'zh-TW': '編輯工具',
-  fr: 'Outils d’édition',
-  de: 'Bearbeitungswerkzeuge',
-  es: 'Herramientas de edición',
-  pt: 'Ferramentas de edição',
-  it: 'Strumenti di modifica',
-  nl: 'Bewerkingsgereedschap',
-  pl: 'Narzędzia edycji',
-  cs: 'Nástroje pro úpravy',
-  ru: 'Инструменты редактирования',
-  id: 'Alat penyuntingan',
-  ms: 'Alat penyuntingan',
-  ar: 'أدوات التحرير',
-  he: 'כלי עריכה',
-  hi: 'संपादन उपकरण',
-  th: 'เครื่องมือแก้ไข',
-  vi: 'Công cụ chỉnh sửa',
-}
-
-async function mountToolbar(studio: RhwpEditor) {
-  document.querySelector('#host-tools')?.remove()
-  const toolbar = document.createElement('nav')
-  toolbar.id = 'host-tools'
-  const toggle = document.createElement('button')
-  toggle.textContent = editingTools[locale] ?? editingTools.en!
-  const update = (expanded: boolean) => toggle.setAttribute('aria-pressed', String(expanded))
-  const initial = await studio.chrome.set({ menu: false, toolbar: false })
-  update(initial.menu || initial.toolbar)
-  toggle.addEventListener('pointerdown', (event) => event.preventDefault())
-  toggle.addEventListener('click', async () => {
-    const expand = toggle.getAttribute('aria-pressed') !== 'true'
-    toggle.disabled = true
-    try {
-      const state = await studio.chrome.set({ menu: expand, toolbar: expand })
-      update(state.menu || state.toolbar)
-    } catch (error) {
-      report(error)
-    } finally {
-      toggle.disabled = false
-    }
-  })
-  toolbar.append(toggle)
-  for (const [key, action] of [
-    ['fileSave', () => window.everyOffice.saveDocument()],
-    ['memoOpen', () => memos?.toggle()],
-    ['checkTitle', () => session && toggleDocumentCheck(bridge, session.format, locale)],
-    ['fileExportPdf', () => print('exportPDF')],
-    ['filePrint', () => print('printPages')],
-  ] as const) {
-    const button = document.createElement('button')
-    button.textContent = text(key)
-    button.addEventListener('pointerdown', (event) => event.preventDefault())
-    button.addEventListener('click', () => {
-      void Promise.resolve(action()).catch(report)
-    })
-    toolbar.append(button)
-  }
-  const convert = document.createElement('button')
-  convert.textContent = `${text('fileSaveAs')} (${session?.format === 'hwp' ? 'HWPX' : 'HWP'})`
-  convert.dataset.action = 'convert-copy'
-  convert.addEventListener('click', () => void exportCopy().catch(report))
-  toolbar.append(convert)
-  document.body.prepend(toolbar)
 }
 
 function savePort(): SaveEditorPort {
@@ -220,6 +145,11 @@ function encode(bytes: Uint8Array): string {
 }
 
 window.everyOffice = {
+  async performAction(action) {
+    if (action === 'pdf') await print('exportPDF')
+    else if (action === 'print') await print('printPages')
+    else if (action === 'convert') await exportCopy()
+  },
   async openDocument(payload) {
     try {
       loading = true
@@ -229,8 +159,6 @@ window.everyOffice = {
       const bytes = Uint8Array.from(atob(payload.base64), (char) => char.charCodeAt(0))
       session = await HwpSession.open(bytes, payload.kind)
       localStorage.setItem('rhwp-settings', seededStudioSettings(null, 'system'))
-      closeDocumentCheck()
-      memos?.destroy()
       editor?.destroy()
       const studioUrl = new URL(
         `./studio/index.html?chrome=embed&lang=${locale === 'ko' ? 'ko' : 'en'}`,
@@ -243,21 +171,11 @@ window.everyOffice = {
       })
       await editor.loadFile(bytes, payload.name, { skipUnsavedGuard: true })
       await bridge.listMemos()
-      memos = mountMemos({
-        bridge,
-        text,
-        changed,
-        report,
-        draft(active) {
-          clearTimeout(timer)
-          send({ type: 'changed', revision, draft: active })
-        },
-      })
-      await mountToolbar(editor)
+      await editor.chrome.set({ menu: true, toolbar: true })
       const frame = editor.element.contentWindow!
-      frame.addEventListener('ieum:memo-insert', () => {
-        void memos?.add().catch(report)
-      })
+      const style = frame.document.createElement('style')
+      style.textContent = '#style-bar, [data-cmd="insert:comment"] { display: none !important }'
+      frame.document.head.append(style)
       frame.addEventListener('ieum:dirty-changed', (event) => {
         if ((event as CustomEvent).detail === true) changed()
       })
@@ -279,10 +197,6 @@ window.everyOffice = {
     return serializeSave(async () => {
       await acknowledging
       if (!session || !editor) return
-      if (memos?.editing) {
-        report(new Error(text('memoSaveBlocked')))
-        return
-      }
       clearTimeout(timer)
       saving = true
       const savedRevision = revision

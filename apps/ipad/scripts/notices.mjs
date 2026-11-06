@@ -117,6 +117,15 @@ const notice = [
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, license]) => `\n${name}\n${'='.repeat(name.length)}\n${license}\n`),
   await drawioNotices(),
+  '\nDeckCraft for iPad\n',
+  ...[
+    'NOTICE',
+    'ATTRIBUTION.md',
+    'LICENSE-APACHE',
+    'LICENSE-MIT',
+    'THIRD-PARTY-NOTICES.txt',
+    'FONT-LICENSES.txt',
+  ].map((file) => readFileSync(join(root, 'vendor/deckcraft', file), 'utf8')),
   '\nHWP engine and studio\n',
   readFileSync(join(root, 'vendor/rhwp-core/LICENSE'), 'utf8'),
   readFileSync(join(root, 'vendor/rhwp-core/THIRD_PARTY_LICENSES.md'), 'utf8'),
