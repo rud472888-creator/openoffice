@@ -1,6 +1,24 @@
 # Validation evidence
 
-Current validation checkpoint: 2026-11-06, including a local physical iPad run. The final device suites passed **50 tests: 46 unit tests and 4 UI tests**. This records the tested scope, not complete desktop parity.
+Current validation checkpoint: 2026-11-06, including a local physical iPad run. The redesign verification passed **58 distinct tests: 50 unit tests and 8 UI tests**, across the main run and focused reruns. This records the tested scope, not complete desktop parity.
+
+## Workspace redesign: 2026-11-06
+
+The working tree is based on `31038de23`, with the native workspace and six web-editor host styles redesigned. The signed Debug app uses the same M4 iPad, iPadOS 27.2 (24B119) and Xcode 27.1 (27A9275). Document engine behavior was retained. [REHEARSAL.md](REHEARSAL.md) records the Stageshow design references and visual corrections.
+
+| Evidence under `apps/ipad/build` | Result |
+| --- | --- |
+| `redesign-web.log` | Six workspaces passed typecheck, 136 tests and production builds; 283 dependency notices retained. |
+| `Redesign-final.xcresult` | 50 unit tests and five UI tests passed: DOCX/HWP/TXT edit-save-relaunch, favorites persistence/removal, and HTML creation through More formats. The run was interrupted during the rename test's repeated XCTest animation wait, so the bundle itself reports failure; it is not a green full-suite run. |
+| `Redesign-rehearsal.xcresult` | All three remaining UI tests passed: rename/duplicate/tab switching, search empty/recovery with grid/list switching, and full-width landscape/portrait home in light/dark appearance. |
+| `Redesign-layout.xcresult` | Final equal-height creation cards passed the landscape/portrait/light/dark layout test again. |
+| Standalone launch | Final signed app launched without test flags into the preserved normal Library; the UI test runner was removed. |
+| `redesign-library-comparison.json` | Both files in the normal Library retained their relative paths and identical SHA-256 hashes before/after automation. |
+| Source checks | Theme-color policy, English-comment policy, `git diff --check`, and all nine new strings in all 21 locales passed. Existing translations are semantically unchanged. |
+
+The initial favorites failure was caused by SwiftUI propagating the sidebar container's accessibility identifier over its buttons. Removing that identifier restored distinct destinations. Explicit content shapes also expand transparent button regions to their intended bounds. The rename test now sends deletion and replacement as one continuous input, retaining its complete filename and document-content assertions. A separate TXT animation wait eventually completed and passed; the platform warning remains in the recorded log.
+
+Debug UI tests use `UITestLibrary` on every launch and relaunch. Reset requires the isolation flag, cannot reset an explicit directory, and is disabled in Release. Four unit regressions verify this separation. Screenshots remain local because the device has unrelated picture-in-picture content. XCTest screen captures are used after settling rotation; no Stageshow browser/demo movie gate is claimed. A final card-height adjustment reserves equal two-line title space; its layout check is recorded separately.
 
 ## Existing Linux/browser evidence: 2026-11-05
 
@@ -17,9 +35,9 @@ The table below records earlier Linux/browser checks. The 2026-11-06 macOS run r
 
 Browser checks use Chromium on Linux, including Korean text input, original package preservation and zero unexpected external HTTP requests. They do not establish WKWebView rendering, Korean iPad IME, Apple Pencil or physical-device memory behavior.
 
-The native app now serves immutable bundled editor assets through a tokenized loopback HTTP server; document bytes travel only through the WK bridge. Native tests cover routing, asset confinement, navigation, PDF rendering/pagination, annotations and library operations. UI tests exercise plain text and DOCX save/relaunch, tabs/rename/duplicate, and HWP canvas input/relaunch with OCR. The current target has 46 unit tests and 4 UI tests, including eleven actual-bundle WebKit route tests and a native save-before-open lifecycle regression. The local device evidence and historical macOS CI results are recorded separately below.
+The native app now serves immutable bundled editor assets through a tokenized loopback HTTP server; document bytes travel only through the WK bridge. Native tests cover routing, asset confinement, navigation, PDF rendering/pagination, annotations and library operations. UI tests exercise plain text and DOCX save/relaunch, tabs/rename/duplicate, and HWP canvas input/relaunch with OCR. The current target has 50 unit tests and 8 UI tests, including eleven actual-bundle WebKit route tests and a native save-before-open lifecycle regression. The local device evidence and historical macOS CI results are recorded separately below.
 
-## Physical iPad: 2026-11-06
+## Physical iPad before the redesign: 2026-11-06
 
 The signed Debug app was built and installed on an M4 iPad running iPadOS 27.2 (24B119), using Xcode 27.1 (27A9275). The tested working tree is based on `42080689d`, with test-only changes described below; application and document-engine production sources were unchanged.
 
@@ -36,7 +54,7 @@ The first local unit run passed 45 of 46 tests. Its only failure compared an ass
 
 These results verify the named automated workflows on this device. Manual Korean IME composition, selection handles, on-screen keyboard resizing, Pencil input, external keyboard shortcuts, sustained memory behavior, broader document fidelity and complete desktop feature parity remain unverified. Local result bundles, summaries and screenshots remain in ignored build directories.
 
-To reproduce the physical-device checks, set `IPAD_DEVICE_ID` and `APPLE_DEVELOPMENT_TEAM` locally, rebuild the six web bundles, and use the following from `apps/ipad`. **The UI tests reset the app's local Library for each test. Run them only with a fresh test installation containing no user documents.** The recorded run started with an empty installation.
+To reproduce the physical-device checks, set `IPAD_DEVICE_ID` and `APPLE_DEVELOPMENT_TEAM` locally, rebuild the six web bundles, and use the following from `apps/ipad`. The earlier recorded run started with an empty installation. Current Debug UI tests explicitly use and reset a separate `UITestLibrary`; the normal Library is preserved, including across relaunches.
 
 ```sh
 xcodegen generate

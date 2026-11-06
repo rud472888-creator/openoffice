@@ -1,21 +1,84 @@
 @import '../../../packages/ui/src/tokens.css';
 
 :root {
-  --accent: #c43e1c;
-  --accent-soft: #fcece8;
+  --surface: #ffffff;
+  --surface-subtle: #fafaf8;
+  --chrome-bg: #ffffff;
+  --canvas: #fafaf8;
+  --border: #e7e9ec;
+  --border-subtle: #eef0f2;
+  --border-strong: #d7dce2;
+  --border-hover: #c7ced7;
+  --text: #20242a;
+  --text-primary: #20242a;
+  --text-secondary: #68717d;
+  --text-muted: #68717d;
+  --text-dim: #68717d;
+  --hover: #f2f4f7;
+  --pressed: #e9edf4;
+  --active-bg: #eaf0ff;
+  --accent: #315be8;
+  --accent-dark: #2448c4;
+  --accent-soft: #eaf0ff;
   --accent-ink: #ffffff;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --surface: #202326;
+  --surface-subtle: #151719;
+  --chrome-bg: #202326;
+  --canvas: #151719;
+  --border: #33383e;
+  --border-subtle: #2b3035;
+  --border-strong: #454d57;
+  --border-hover: #596471;
+  --text: #edf0f4;
+  --text-primary: #edf0f4;
+  --text-secondary: #a4aebb;
+  --text-muted: #a4aebb;
+  --text-dim: #a4aebb;
+  --hover: #2b3036;
+  --pressed: #363e49;
+  --active-bg: #2b3856;
+  --accent: #89a5ff;
+  --accent-dark: #b3c5ff;
+  --accent-soft: #2b3856;
+  --accent-ink: #151719;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --surface: #202326;
+    --surface-subtle: #151719;
+    --chrome-bg: #202326;
+    --canvas: #151719;
+    --border: #33383e;
+    --border-subtle: #2b3035;
+    --border-strong: #454d57;
+    --border-hover: #596471;
+    --text: #edf0f4;
+    --text-primary: #edf0f4;
+    --text-secondary: #a4aebb;
+    --text-muted: #a4aebb;
+    --text-dim: #a4aebb;
+    --hover: #2b3036;
+    --pressed: #363e49;
+    --active-bg: #2b3856;
+    --accent: #89a5ff;
+    --accent-dark: #b3c5ff;
+    --accent-soft: #2b3856;
+    --accent-ink: #151719;
+    color-scheme: dark;
+  }
+}
+
+:root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--text);
   background: var(--surface-subtle);
   -webkit-text-size-adjust: 100%;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --accent: #e8663f;
-    --accent-soft: #472b23;
-    --accent-ink: #ffffff;
-  }
 }
 
 * {
@@ -31,8 +94,8 @@ textarea {
 button {
   min-height: 44px;
   min-width: 44px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   padding: 10px 16px;
   color: var(--text);
   background: var(--surface);
@@ -54,16 +117,18 @@ h2:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 16px 24px;
+  padding: 12px 24px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 .document-heading {
   min-width: 0;
 }
-h1 {
+.toolbar h1 {
   margin: 0;
-  font-size: 19px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -81,9 +146,8 @@ h1 {
   flex-shrink: 0;
 }
 .notice {
-  padding: 15px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  background: var(--surface-subtle);
 }
 .notice strong {
   font-size: 14px;
@@ -105,17 +169,17 @@ h1 {
 }
 .workspace {
   display: grid;
-  grid-template-columns: 238px minmax(0, 1fr);
+  grid-template-columns: 208px minmax(0, 1fr);
   min-height: calc(100dvh - 160px);
 }
 .outline {
   border-inline-end: 1px solid var(--border);
   background: var(--surface);
-  padding: 20px 12px;
+  padding: 24px 12px;
 }
 .outline h2 {
   margin: 0 12px 15px;
-  font-size: 15px;
+  font-size: 13px;
 }
 .outline ol {
   display: grid;
@@ -134,8 +198,9 @@ h1 {
   text-align: start;
 }
 .outline button[aria-current='true'] {
-  border-color: var(--accent);
+  border-color: transparent;
   background: var(--accent-soft);
+  color: var(--accent-dark);
 }
 .slide-number {
   color: var(--text-secondary);
@@ -150,7 +215,7 @@ h1 {
   text-overflow: ellipsis;
   font-size: 14px;
 }
-main {
+#slide-text {
   padding: 26px clamp(18px, 3vw, 46px) 60px;
   min-width: 0;
   max-width: 1100px;
@@ -166,7 +231,8 @@ main {
 }
 .slide-heading h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
+  font-weight: 600;
 }
 .position {
   color: var(--text-secondary);
@@ -256,7 +322,7 @@ textarea[readonly] {
     max-width: 180px;
     flex-shrink: 0;
   }
-  main {
+  #slide-text {
     padding: 22px 16px 50px;
   }
   .paragraph {
@@ -306,8 +372,8 @@ summary:focus-visible {
   max-height: 68dvh;
   padding: 36px 22px;
   background: var(--canvas);
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 4px;
 }
 .canvas-stage {
   width: 100%;
@@ -341,11 +407,11 @@ summary:focus-visible {
   cursor: nwse-resize;
 }
 .visual-inspector {
-  margin-top: 20px;
-  padding: 18px;
+  margin-top: 24px;
+  padding: 20px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .visual-inspector > select {
   width: 100%;
@@ -509,4 +575,29 @@ summary:focus-visible {
   .property-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.visual-toolbar :is(button, select),
+.format-actions button,
+.slide-actions summary {
+  border-color: var(--border);
+  font-size: 13px;
+}
+:where(.toolbar, .visual-toolbar, .format-actions, .outline, .paging) button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.toolbar .save:hover:not(:disabled) {
+  background: var(--accent-dark);
+}
+.outline button[aria-current='true']:hover {
+  background: var(--accent-soft);
+}
+.feature-panel {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px 0;
+}
+.feature-panel summary {
+  font-size: 13px;
 }

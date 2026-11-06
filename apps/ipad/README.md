@@ -1,9 +1,10 @@
 # every office for iPad
 
-A native SwiftUI workspace for iPadOS 17 and later, based on the existing
-IeumOffice design and document engines. The app uses the desktop shell's blue
-accent, neutral surfaces, sidebar navigation, and document cards, with adaptive
-columns, system dark mode, and support for all 21 existing interface languages.
+A native SwiftUI workspace for iPadOS 17 and later, using the existing IeumOffice
+document engines. The redesigned two-column library uses paper previews, quiet
+chrome and a cobalt accent. A compact creation shelf, searchable grid/list layouts
+and full-width editors adapt to the iPad window, with system dark mode and all 21
+existing interface languages. Design and rehearsal notes are in [REHEARSAL.md](REHEARSAL.md).
 
 This is a new iPad target. Desktop Electron APIs and desktop AI subprocesses are
 not included. It does not connect an account, AI service, or analytics service.
@@ -61,7 +62,7 @@ project and Info.plist are ignored; `project.yml` is the source of truth. All
 six generated editor directories and the Templates directory must be copied as
 folder resources; the spec includes those references explicitly.
 
-Physical-device build/test commands and local evidence are in [VALIDATION.md](VALIDATION.md). The UI suite resets the app's Library for every test; use a fresh test installation with no user documents.
+Physical-device build/test commands and local evidence are in [VALIDATION.md](VALIDATION.md). Debug UI tests use a separate `UITestLibrary` directory and reset only that directory. Relaunches retain the isolation flag; the normal document Library is preserved.
 
 ## Validation and architecture
 
@@ -83,10 +84,11 @@ XCTest covers byte-preserving imports, duplicate filenames, restart persistence,
 favorite recovery, invalid text, import limits, save/delete guards, and unique
 note creation. Eleven actual-bundle WebKit tests exercise format opening and saving, including Korean DOCX input/save/reopen and the desktop TXT newline policy. A separate native lifecycle test covers saves requested before document loading completes.
 XCUITest checks text notes, rich DOCX and HWP canvas input across app relaunch,
-plus file rename, duplication and tabs. Screenshots and bridge diagnostics
+plus file rename, duplication, tabs, favorites, search, grid/list layouts, additional
+format creation, and landscape/portrait/light/dark home layouts. Screenshots and bridge diagnostics
 are attached to the result bundle.
 
-On 2026-11-06, the local M4 iPad run on iPadOS 27.2 (24B119), built with Xcode 27.1 (27A9275), passed all **50 native tests: 46 unit tests and 4 UI tests**. All six web workspaces also passed typecheck, 136 tests and production builds. The latest historical Simulator CI at `49a5daa7c` completed with 46/49 passing and three UI failures; the local test fixes and device results are documented separately in [VALIDATION.md](VALIDATION.md).
+On 2026-11-06, the local M4 iPad run on iPadOS 27.2 (24B119), built with Xcode 27.1 (27A9275), passed **58 distinct native tests: 50 unit tests and 8 UI tests**, across the main run and focused reruns. An interrupted animation-wait run is recorded explicitly in the validation log. All six web workspaces also passed typecheck, 136 tests and production builds. The latest historical Simulator CI at `49a5daa7c` completed with 46/49 passing and three UI failures; the local test fixes and device results are documented separately in [VALIDATION.md](VALIDATION.md).
 
 Manual Korean keyboard composition, Pencil input, selection/keyboard behavior, memory testing and complete desktop parity remain separate acceptance work. Passing the automated device suite does not complete the full feature checklist.
 

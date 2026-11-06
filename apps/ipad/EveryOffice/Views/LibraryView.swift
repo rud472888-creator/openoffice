@@ -3,14 +3,15 @@ import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Bindable var library: DocumentLibrary
-    @State private var section: LibrarySection? = .recent
+    @State private var section: LibrarySection = .recent
     @State private var search = ""
     @State private var importing = false
     @State private var showingAbout = false
     @State private var pendingDeletion: OfficeDocument?
     @State private var renamingDocument: OfficeDocument?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var preferredCompactColumn: NavigationSplitViewColumn = .content
+    @State private var preferredCompactColumn: NavigationSplitViewColumn = .detail
+    @AppStorage("libraryUsesGrid") private var usesGrid = true
 
     private var filteredDocuments: [OfficeDocument] {
         library.documents.filter { document in
@@ -21,119 +22,46 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(spacing: 10) {
-                    Image(systemName: "square.stack.3d.up.fill")
-                        .font(.title2).foregroundStyle(OfficeTheme.accent)
-                    Text(verbatim: "every office").font(.title3.weight(.bold))
-                }
-                .padding(.horizontal, 20).padding(.top, 24)
-
-                List(selection: $section) {
-                    Label("Recent", systemImage: "clock").tag(LibrarySection.recent)
-                    Label("Favorites", systemImage: "star").tag(LibrarySection.favorites)
-                }
-                .listStyle(.sidebar).scrollContentBackground(.hidden)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Button { importing = true } label: { Label("Import from Files", systemImage: "folder.badge.plus") }
-                    Button { showingAbout = true } label: { Label("About", systemImage: "info.circle") }
-                }
-                .buttonStyle(.plain).foregroundStyle(OfficeTheme.secondary)
-                .padding(20)
-            }
-            .background(OfficeTheme.surface)
-            .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
-        } content: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if section != .favorites {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Your workspace, on iPad.").font(.largeTitle.weight(.bold))
-                            Text("Create a note or bring your documents from Files.")
-                                .foregroundStyle(OfficeTheme.secondary)
-                        }
-                        .padding(.top, 8)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                            NewDocumentCard(title: "New document", symbol: "doc.text", color: OfficeTheme.documentBlue, identifier: "newDocument") { createOffice("docx") }
-                            NewDocumentCard(title: "New workbook", symbol: "tablecells", color: OfficeTheme.sheetGreen, identifier: "newWorkbook") { createOffice("xlsx") }
-                            NewDocumentCard(title: "New presentation", symbol: "rectangle.on.rectangle", color: OfficeTheme.slideOrange, identifier: "newPresentation") { createOffice("pptx") }
-                            ForEach(additionalTemplates) { template in
-                                NewDocumentCard(title: template.title, symbol: template.symbol, color: OfficeTheme.documentBlue, identifier: template.identifier) { createOffice(template.ext) }
-                            }
-                            NewDocumentCard(title: "New note", symbol: "doc.plaintext", color: OfficeTheme.documentBlue, identifier: "newNote") { create(markdown: false) }
-                            NewDocumentCard(title: "New Markdown", symbol: "text.alignleft", color: OfficeTheme.ink, identifier: "newMarkdown") { create(markdown: true) }
-                            NewDocumentCard(title: "Import", symbol: "folder", color: OfficeTheme.sheetGreen, identifier: "importCard") { importing = true }
-                        }
-                    }
-
-                    HStack {
-                        Text(LocalizedStringKey(section == .favorites ? "Favorites" : "Recent documents")).font(.title2.weight(.semibold))
-                        Spacer()
-                        Text(filteredDocuments.count, format: .number).foregroundStyle(OfficeTheme.secondary)
-                    }
-
-                    if filteredDocuments.isEmpty {
-                        ContentUnavailableView(LocalizedStringKey(search.isEmpty ? "No documents yet" : "No matching documents"),
-                            systemImage: search.isEmpty ? "doc" : "magnifyingglass",
-                            description: Text("Import a file or create a note to get started."))
-                    } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 16)], spacing: 16) {
-                            ForEach(filteredDocuments) { document in
-                                Button { library.selectedID = document.id } label: {
-                                    DocumentCard(document: document, selected: library.selectedID == document.id)
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("document-\(document.filename)")
-                                .contextMenu {
-                                    Button { renamingDocument = document } label: { Label("Rename", systemImage: "pencil") }
-                                        .disabled(library.savingDocumentIDs.contains(document.id))
-                                    Button {
-                                        perform { library.selectedID = try library.duplicate(document).id }
-                                    } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
-                                    .disabled(library.savingDocumentIDs.contains(document.id))
-                                    Button { perform { try library.toggleFavorite(document) } } label: {
-                                        Label(LocalizedStringKey(document.isFavorite ? "Remove favorite" : "Add favorite"), systemImage: document.isFavorite ? "star.slash" : "star")
-                                    }
-                                    ShareLink(item: document.url)
-                                        .disabled(library.savingDocumentIDs.contains(document.id))
-                                    Button(role: .destructive) { pendingDeletion = document } label: { Label("Delete", systemImage: "trash") }
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(24)
-            }
-            .background(OfficeTheme.subtle)
-            .accessibilityIdentifier("documentLibrary")
-            .navigationTitle(LocalizedStringKey(section == .favorites ? "Favorites" : "Home"))
-            .searchable(text: $search, prompt: "Search documents")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { importing = true } label: { Label("Import", systemImage: "square.and.arrow.down") }
-                        .accessibilityIdentifier("importDocument")
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 320, ideal: 560)
+            sidebar
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationSplitViewColumnWidth(min: 210, ideal: 232, max: 260)
         } detail: {
             if let document = library.selectedDocument {
                 DocumentDetailView(library: library, document: document).id(document.id)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
-                            Button { showLibrary() } label: { Label("Home", systemImage: "house") }
+                            Button { showLibrary() } label: { Label("Home", systemImage: "square.grid.2x2") }
                                 .accessibilityIdentifier("showLibrary")
                         }
                     }
             } else {
-                ContentUnavailableView("Select a document", systemImage: "doc.text.magnifyingglass",
-                    description: Text("Your files stay on this iPad unless you share them."))
-                    .background(OfficeTheme.subtle)
+                workspace
+                    .navigationTitle("")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Label("On this iPad", systemImage: "ipad")
+                                .labelStyle(.titleAndIcon)
+                                .font(.caption).foregroundStyle(OfficeTheme.secondary)
+                        }
+                        ToolbarItem(placement: .primaryAction) {
+                            Button { importing = true } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "square.and.arrow.down")
+                                    Text("Import")
+                                }
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 8).frame(minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent).tint(OfficeTheme.accent)
+                            .accessibilityIdentifier("importDocument")
+                        }
+                    }
             }
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: library.selectedID, initial: true) { _, selectedID in
-            preferredCompactColumn = selectedID == nil ? .content : .detail
+            preferredCompactColumn = .detail
             columnVisibility = selectedID == nil ? .all : .detailOnly
         }
         .onChange(of: section) { _, _ in showLibrary() }
@@ -170,6 +98,217 @@ struct LibraryView: View {
         .foregroundStyle(OfficeTheme.ink)
     }
 
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(verbatim: "every office")
+                .font(.system(size: 25, weight: .semibold, design: .rounded))
+                .tracking(-1).padding(.horizontal, 24).padding(.top, 34).padding(.bottom, 36)
+
+            VStack(spacing: 6) {
+                sidebarItem("All documents", symbol: "square.grid.2x2", destination: .recent,
+                            count: library.documents.count)
+                sidebarItem("Favorites", symbol: "star", destination: .favorites,
+                            count: library.documents.filter(\.isFavorite).count)
+            }
+            .padding(.horizontal, 12)
+
+            Spacer(minLength: 32)
+            VStack(alignment: .leading, spacing: 8) {
+                Button { importing = true } label: {
+                    Label("Import from Files", systemImage: "folder.badge.plus")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                Button { showingAbout = true } label: {
+                    Label("About", systemImage: "info.circle")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                Divider().overlay(OfficeTheme.border).padding(.vertical, 8)
+                Label("On this iPad", systemImage: "internaldrive")
+                    .font(.caption).padding(.bottom, 4)
+            }
+            .font(.subheadline).foregroundStyle(OfficeTheme.secondary)
+            .buttonStyle(.plain).padding(24)
+        }
+        .background(OfficeTheme.sidebar)
+    }
+
+    private func sidebarItem(_ title: LocalizedStringKey, symbol: String, destination: LibrarySection, count: Int) -> some View {
+        Button { section = destination; showLibrary() } label: {
+            HStack(spacing: 12) {
+                Image(systemName: symbol).font(.system(size: 17, weight: .medium)).frame(width: 22)
+                Text(title).font(.subheadline.weight(section == destination ? .semibold : .medium))
+                Spacer(minLength: 4)
+                Text(count, format: .number).font(.caption.monospacedDigit())
+                    .foregroundStyle(OfficeTheme.secondary)
+            }
+            .padding(.horizontal, 14).frame(minHeight: 48)
+            .foregroundStyle(section == destination ? OfficeTheme.accent : OfficeTheme.ink)
+            .background(section == destination ? OfficeTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(OfficePressStyle())
+        .accessibilityIdentifier(destination == .recent ? "librarySection-recent" : "librarySection-favorites")
+        .accessibilityAddTraits(section == destination ? .isSelected : [])
+    }
+
+    private var workspace: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 36) {
+                    workspaceHeader(wide: geometry.size.width > 740)
+                    if section == .recent && search.isEmpty { creationShelf }
+                    documentsSection
+                }
+                .frame(maxWidth: 1180, alignment: .leading)
+                .padding(.horizontal, geometry.size.width > 900 ? 48 : 24)
+                .padding(.top, 24).padding(.bottom, 48)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .accessibilityIdentifier("documentLibrary")
+            .background(OfficeTheme.subtle)
+        }
+    }
+
+    @ViewBuilder
+    private func workspaceHeader(wide: Bool) -> some View {
+        if wide {
+            HStack(alignment: .center, spacing: 32) {
+                workspaceTitle
+                Spacer(minLength: 16)
+                searchField.frame(width: 300)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 20) {
+                workspaceTitle
+                searchField
+            }
+        }
+    }
+
+    private var workspaceTitle: some View {
+        Text(LocalizedStringKey(section == .favorites ? "Favorites" : "Documents"))
+            .font(.largeTitle.weight(.semibold)).tracking(-0.8)
+            .foregroundStyle(OfficeTheme.ink)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(OfficeTheme.secondary)
+            TextField("Search documents", text: $search)
+                .font(.subheadline).autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("documentSearch")
+            if !search.isEmpty {
+                Button { search = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                }
+                    .foregroundStyle(OfficeTheme.secondary)
+                    .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 14).frame(minHeight: 48)
+        .background(OfficeTheme.well, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var creationShelf: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Create new").font(.subheadline.weight(.semibold)).foregroundStyle(OfficeTheme.secondary)
+                Spacer()
+                Menu {
+                    ForEach(additionalTemplates.filter { $0.ext != "hwp" }) { template in
+                        Button { createOffice(template.ext) } label: { Label(template.title, systemImage: template.symbol) }
+                            .accessibilityIdentifier(template.identifier)
+                    }
+                } label: {
+                    Label("More formats", systemImage: "plus")
+                        .font(.subheadline.weight(.medium)).frame(minHeight: 44)
+                }
+                .accessibilityIdentifier("moreFormats")
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 12)], spacing: 12) {
+                NewDocumentCard(title: "New document", symbol: "doc.text", format: "DOCX", color: OfficeTheme.documentBlue, identifier: "newDocument") { createOffice("docx") }
+                NewDocumentCard(title: "New workbook", symbol: "tablecells", format: "XLSX", color: OfficeTheme.sheetGreen, identifier: "newWorkbook") { createOffice("xlsx") }
+                NewDocumentCard(title: "New presentation", symbol: "rectangle.on.rectangle", format: "PPTX", color: OfficeTheme.slideOrange, identifier: "newPresentation") { createOffice("pptx") }
+                NewDocumentCard(title: "New HWP document", symbol: "doc.text", format: "HWP", color: OfficeTheme.documentBlue, identifier: "newHwp") { createOffice("hwp") }
+                NewDocumentCard(title: "New note", symbol: "doc.plaintext", format: "TXT", color: OfficeTheme.secondary, identifier: "newNote") { create(markdown: false) }
+                NewDocumentCard(title: "New Markdown", symbol: "text.alignleft", format: "MD", color: OfficeTheme.secondary, identifier: "newMarkdown") { create(markdown: true) }
+            }
+        }
+    }
+
+    private var documentsSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 10) {
+                Text(LocalizedStringKey(section == .favorites ? "Favorites" : "Recent documents"))
+                    .font(.title3.weight(.semibold))
+                Text(filteredDocuments.count, format: .number)
+                    .font(.caption.monospacedDigit()).foregroundStyle(OfficeTheme.secondary)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(OfficeTheme.well, in: Capsule())
+                Spacer()
+                HStack(spacing: 2) {
+                    layoutButton(grid: true)
+                    layoutButton(grid: false)
+                }
+                .padding(3).background(OfficeTheme.well, in: RoundedRectangle(cornerRadius: 10))
+            }
+            if filteredDocuments.isEmpty {
+                LibraryEmptyState(searching: !search.isEmpty, favorites: section == .favorites)
+            } else if usesGrid {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 215, maximum: 320), spacing: 20)], spacing: 20) {
+                    ForEach(filteredDocuments) { document in documentButton(document, compact: false) }
+                }
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredDocuments) { document in
+                        documentButton(document, compact: true)
+                        if document.id != filteredDocuments.last?.id { Divider().padding(.leading, 76) }
+                    }
+                }
+                .background(OfficeTheme.surface, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+    }
+
+    private func layoutButton(grid: Bool) -> some View {
+        Button { usesGrid = grid } label: {
+            Image(systemName: grid ? "square.grid.2x2" : "list.bullet")
+                .font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44)
+                .foregroundStyle(usesGrid == grid ? OfficeTheme.ink : OfficeTheme.secondary)
+                .background(usesGrid == grid ? OfficeTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 7))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(LocalizedStringKey(grid ? "Grid view" : "List view"))
+        .accessibilityIdentifier(grid ? "libraryGridView" : "libraryListView")
+        .accessibilityAddTraits(usesGrid == grid ? .isSelected : [])
+    }
+
+    private func documentButton(_ document: OfficeDocument, compact: Bool) -> some View {
+        Button { library.selectedID = document.id } label: {
+            DocumentCard(document: document, compact: compact)
+        }
+        .buttonStyle(OfficePressStyle())
+        .accessibilityIdentifier("document-\(document.filename)")
+        .contextMenu {
+            Button { renamingDocument = document } label: { Label("Rename", systemImage: "pencil") }
+                .disabled(library.savingDocumentIDs.contains(document.id))
+            Button { perform { library.selectedID = try library.duplicate(document).id } } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+                .disabled(library.savingDocumentIDs.contains(document.id))
+            Button { perform { try library.toggleFavorite(document) } } label: {
+                Label(LocalizedStringKey(document.isFavorite ? "Remove favorite" : "Add favorite"), systemImage: document.isFavorite ? "star.slash" : "star")
+            }
+            ShareLink(item: document.url).disabled(library.savingDocumentIDs.contains(document.id))
+            Button(role: .destructive) { pendingDeletion = document } label: { Label("Delete", systemImage: "trash") }
+        }
+    }
+
     private func create(markdown: Bool) {
         perform { library.selectedID = try library.create(markdown: markdown).id }
     }
@@ -189,7 +328,7 @@ struct LibraryView: View {
 
     private func showLibrary() {
         library.selectedID = nil
-        preferredCompactColumn = .content
+        preferredCompactColumn = .detail
         columnVisibility = .all
     }
 
@@ -210,63 +349,4 @@ private struct AdditionalTemplate: Identifiable {
     let symbol: String
     let identifier: String
     var id: String { ext }
-}
-
-private struct NewDocumentCard: View {
-    let title: LocalizedStringKey
-    let symbol: String
-    let color: Color
-    let identifier: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: symbol).font(.title).foregroundStyle(color)
-                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(OfficeTheme.ink)
-            }
-            .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-            .padding(16)
-            .background(OfficeTheme.surface, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(OfficeTheme.border))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
-    }
-}
-
-private struct DocumentCard: View {
-    let document: OfficeDocument
-    let selected: Bool
-
-    private var color: Color {
-        switch document.kind {
-        case .spreadsheet: OfficeTheme.sheetGreen
-        case .presentation: OfficeTheme.slideOrange
-        case .pdf: OfficeTheme.pdfRed
-        default: OfficeTheme.documentBlue
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: document.kind.symbol).font(.system(size: 36, weight: .light)).foregroundStyle(color)
-                Spacer()
-                if document.isFavorite { Image(systemName: "star.fill").foregroundStyle(OfficeTheme.accent) }
-            }
-            .frame(height: 72)
-            Text(verbatim: document.name).font(.subheadline.weight(.semibold)).lineLimit(2)
-            HStack {
-                Text(verbatim: document.url.pathExtension.uppercased()).font(.caption.weight(.medium))
-                Spacer()
-                Text(document.modifiedAt, style: .date).font(.caption)
-            }
-            .foregroundStyle(OfficeTheme.secondary)
-        }
-        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-        .background(selected ? OfficeTheme.accentSoft : OfficeTheme.surface, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? OfficeTheme.accent : OfficeTheme.border))
-        .accessibilityElement(children: .combine)
-    }
 }

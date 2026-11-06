@@ -23,6 +23,7 @@ struct RenameDocumentSheet: View {
                 if let errorMessage { Text(verbatim: errorMessage).foregroundStyle(.red) }
             }
             .navigationTitle("Rename")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

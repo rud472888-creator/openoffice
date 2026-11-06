@@ -28,13 +28,19 @@ final class DocumentLibrary {
     nonisolated static let maximumImportBytes: Int64 = 100 * 1_024 * 1_024
     nonisolated static let maximumTextBytes = 10 * 1_024 * 1_024
 
-    init(directory: URL? = nil, fileManager: FileManager = .default) {
+    init(directory: URL? = nil, fileManager: FileManager = .default,
+         launchArguments: [String] = ProcessInfo.processInfo.arguments) {
         self.fileManager = fileManager
+        #if DEBUG
+        let isUITesting = directory == nil && launchArguments.contains("--uitesting-library")
+        #else
+        let isUITesting = false
+        #endif
         self.directory = directory ?? fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent(isUITesting ? "UITestLibrary" : "Library", isDirectory: true)
         do {
             #if DEBUG
-            if directory == nil, ProcessInfo.processInfo.arguments.contains("--uitesting-reset-library"),
+            if isUITesting, launchArguments.contains("--uitesting-reset-library"),
                fileManager.fileExists(atPath: self.directory.path) {
                 try fileManager.removeItem(at: self.directory)
             }

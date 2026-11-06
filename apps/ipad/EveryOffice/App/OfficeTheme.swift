@@ -1,19 +1,32 @@
 import SwiftUI
 import UIKit
 
-// Native equivalents of packages/ui/src/tokens.css and the shell accent.
+// The native workspace shares its paper, ink and cobalt palette with the iPad editor hosts.
 enum OfficeTheme {
-    static let surface = adaptive(light: 0xffffff, dark: 0x1e1e1e)
-    static let subtle = adaptive(light: 0xf6f7f9, dark: 0x2a2a2a)
-    static let border = adaptive(light: 0xe3e6ea, dark: 0x3a3a3a)
-    static let ink = adaptive(light: 0x232425, dark: 0xe4e4e4)
-    static let secondary = adaptive(light: 0x606366, dark: 0xa0a0a0)
-    static let accent = adaptive(light: 0x0f7fff, dark: 0x3f99ff)
-    static let accentSoft = adaptive(light: 0xeaf0fd, dark: 0x24354d)
-    static let documentBlue = adaptive(light: 0x2867c4, dark: 0x79aaff)
-    static let sheetGreen = adaptive(light: 0x107c41, dark: 0x70c99a)
-    static let slideOrange = adaptive(light: 0xc4512b, dark: 0xffa17e)
-    static let pdfRed = adaptive(light: 0xc43737, dark: 0xff9292)
+    static let surface = adaptive(light: 0xffffff, dark: 0x202326)
+    static let subtle = adaptive(light: 0xfafaf8, dark: 0x151719)
+    static let sidebar = adaptive(light: 0xf1f2ef, dark: 0x1b1e21)
+    static let well = adaptive(light: 0xf0f2f5, dark: 0x292e34)
+    static let previewPaper = adaptive(light: 0xffffff, dark: 0xe8ebef)
+    static let previewInk = adaptive(light: 0x20242a, dark: 0x20242a)
+    static let border = adaptive(light: 0xe4e6e8, dark: 0x343a42)
+    static let ink = adaptive(light: 0x20242a, dark: 0xeff1f4)
+    static let secondary = adaptive(light: 0x68717d, dark: 0xa7b0bd)
+    static let accent = adaptive(light: 0x315be8, dark: 0x89a5ff)
+    static let accentSoft = adaptive(light: 0xe9eeff, dark: 0x273453)
+    static let documentBlue = adaptive(light: 0x315be8, dark: 0x89a5ff)
+    static let sheetGreen = adaptive(light: 0x28745e, dark: 0x82c6ac)
+    static let slideOrange = adaptive(light: 0xad5833, dark: 0xe9a380)
+    static let pdfRed = adaptive(light: 0xba494b, dark: 0xf19a9c)
+
+    static func color(for kind: DocumentKind) -> Color {
+        switch kind {
+        case .spreadsheet: sheetGreen
+        case .presentation: slideOrange
+        case .pdf: pdfRed
+        default: documentBlue
+        }
+    }
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(uiColor: UIColor { traits in
@@ -22,5 +35,16 @@ enum OfficeTheme {
                            green: CGFloat((value >> 8) & 255) / 255,
                            blue: CGFloat(value & 255) / 255, alpha: 1)
         })
+    }
+}
+
+struct OfficePressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }

@@ -43,6 +43,7 @@ struct DocumentDetailView: View {
                 } label: {
                     Label("Favorite", systemImage: document.isFavorite ? "star.fill" : "star")
                 }
+                .accessibilityIdentifier("favoriteDocument")
                 Button {
                     do {
                         exportFile = ExportedDocument(data: try Data(contentsOf: document.url))

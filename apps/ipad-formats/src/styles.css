@@ -1,9 +1,86 @@
 :root {
-  --formats-border: #d8dee8;
-  --formats-paper: #fff;
-  --formats-canvas: #f3f5f8;
-  --formats-ink: #1c2636;
+  --surface: #ffffff;
+  --surface-subtle: #fafaf8;
+  --chrome-bg: #ffffff;
+  --canvas: #fafaf8;
+  --border: #e7e9ec;
+  --border-subtle: #eef0f2;
+  --border-strong: #d7dce2;
+  --border-hover: #c7ced7;
+  --text: #20242a;
+  --text-primary: #20242a;
+  --text-secondary: #68717d;
+  --text-muted: #68717d;
+  --text-dim: #68717d;
+  --hover: #f2f4f7;
+  --pressed: #e9edf4;
+  --active-bg: #eaf0ff;
+  --accent: #315be8;
+  --accent-dark: #2448c4;
+  --accent-soft: #eaf0ff;
+  --formats-border: #e7e9ec;
+  --formats-paper: #ffffff;
+  --formats-canvas: #fafaf8;
+  --formats-ink: #20242a;
+  color-scheme: light;
 }
+
+:root[data-theme='dark'] {
+  --surface: #202326;
+  --surface-subtle: #151719;
+  --chrome-bg: #202326;
+  --canvas: #151719;
+  --border: #33383e;
+  --border-subtle: #2b3035;
+  --border-strong: #454d57;
+  --border-hover: #596471;
+  --text: #edf0f4;
+  --text-primary: #edf0f4;
+  --text-secondary: #a4aebb;
+  --text-muted: #a4aebb;
+  --text-dim: #a4aebb;
+  --hover: #2b3036;
+  --pressed: #363e49;
+  --active-bg: #2b3856;
+  --accent: #89a5ff;
+  --accent-dark: #b3c5ff;
+  --accent-soft: #2b3856;
+  --formats-border: #33383e;
+  --formats-paper: #202326;
+  --formats-canvas: #151719;
+  --formats-ink: #edf0f4;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --surface: #202326;
+    --surface-subtle: #151719;
+    --chrome-bg: #202326;
+    --canvas: #151719;
+    --border: #33383e;
+    --border-subtle: #2b3035;
+    --border-strong: #454d57;
+    --border-hover: #596471;
+    --text: #edf0f4;
+    --text-primary: #edf0f4;
+    --text-secondary: #a4aebb;
+    --text-muted: #a4aebb;
+    --text-dim: #a4aebb;
+    --hover: #2b3036;
+    --pressed: #363e49;
+    --active-bg: #2b3856;
+    --accent: #89a5ff;
+    --accent-dark: #b3c5ff;
+    --accent-soft: #2b3856;
+    --formats-border: #33383e;
+    --formats-paper: #202326;
+    --formats-canvas: #151719;
+    --formats-ink: #edf0f4;
+    color-scheme: dark;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -32,45 +109,46 @@ body {
 .editor-root {
   flex: 1;
 }
-header {
+#app > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 16px;
+  padding: 12px 24px;
+  background: var(--surface);
   border-bottom: 1px solid var(--formats-border);
 }
-h1 {
+#app > header h1 {
   font-size: 16px;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-button,
-select,
-input {
+:where(#app > header, .toolbar, .book-search-results, dialog) :is(button, select, input) {
   font: inherit;
   min-height: 44px;
   padding: 8px 12px;
   color: var(--text, var(--formats-ink));
   background: var(--surface, var(--formats-paper));
   border: 1px solid var(--formats-border);
-  border-radius: 7px;
+  border-radius: 8px;
 }
-button {
+:where(#app > header, .toolbar, .book-search-results, dialog) button {
   cursor: pointer;
   touch-action: manipulation;
 }
-button:focus-visible,
-select:focus-visible {
+:where(#app > header, .toolbar, .book-search-results, dialog)
+  :is(button, select, input):focus-visible {
   outline: 2px solid var(--accent);
 }
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface);
+  font-size: 13px;
   border-bottom: 1px solid var(--formats-border);
   max-height: 150px;
   overflow: auto;
@@ -142,9 +220,9 @@ iframe {
 }
 dialog {
   border: 1px solid var(--formats-border);
-  border-radius: 14px;
+  border-radius: 16px;
   width: min(560px, 90vw);
-  padding: 20px;
+  padding: 24px;
   color: var(--formats-ink);
   background: var(--formats-paper);
 }
@@ -195,4 +273,36 @@ dialog button {
 .toolbar output {
   align-self: center;
   padding: 0 8px;
+}
+
+#app > header h1 {
+  font-weight: 600;
+  line-height: 1.4;
+}
+.toolbar button {
+  border-color: transparent;
+}
+.toolbar button:hover:not(:disabled) {
+  background: var(--hover);
+}
+dialog::backdrop {
+  background: var(--color-bg-overlay);
+}
+.book-search-results {
+  padding: 8px 12px;
+  background: var(--surface);
+}
+.book-search-results button {
+  border: 0;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+#app > header button {
+  flex: none;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  border-color: transparent;
+  font-size: 13px;
+  font-weight: 600;
 }

@@ -16,6 +16,74 @@ final class DocumentLibraryTests: XCTestCase {
         DocumentLibrary(directory: root.appendingPathComponent("library"))
     }
 
+    #if DEBUG
+    @MainActor
+    func testUITestingResetFlagAlonePreservesNormalLibrary() throws {
+        let manager = LibraryTestFileManager(documentsDirectory: root)
+        let original = DocumentLibrary(fileManager: manager, launchArguments: [])
+        let note = try original.create(markdown: false)
+        try original.saveText("Personal document", document: note)
+
+        let relaunched = DocumentLibrary(fileManager: manager, launchArguments: ["--uitesting-reset-library"])
+        XCTAssertEqual(relaunched.documents.map(\.id), [note.id])
+        XCTAssertEqual(try relaunched.readText(note), "Personal document")
+        XCTAssertFalse(manager.fileExists(atPath: root.appendingPathComponent("UITestLibrary").path))
+    }
+
+    @MainActor
+    func testUITestingUsesSeparateLibraryAcrossRelaunches() throws {
+        let manager = LibraryTestFileManager(documentsDirectory: root)
+        let original = DocumentLibrary(fileManager: manager, launchArguments: [])
+        let personal = try original.create(markdown: false)
+        try original.saveText("Keep personal files", document: personal)
+        let testing = DocumentLibrary(fileManager: manager, launchArguments: ["--uitesting-library"])
+        XCTAssertNil(testing.errorMessage)
+        XCTAssertTrue(testing.documents.isEmpty)
+        let testNote = try testing.create(markdown: true)
+        try testing.saveText("UI test document", document: testNote)
+        XCTAssertEqual(testNote.url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent, "UITestLibrary")
+
+        let relaunched = DocumentLibrary(fileManager: manager, launchArguments: ["--uitesting-library"])
+        XCTAssertEqual(relaunched.documents.map(\.id), [testNote.id])
+        XCTAssertEqual(try relaunched.readText(testNote), "UI test document")
+        let normal = DocumentLibrary(fileManager: manager, launchArguments: [])
+        XCTAssertEqual(normal.documents.map(\.id), [personal.id])
+        XCTAssertEqual(try normal.readText(personal), "Keep personal files")
+    }
+
+    @MainActor
+    func testUITestingResetOnlyRemovesDedicatedLibrary() throws {
+        let manager = LibraryTestFileManager(documentsDirectory: root)
+        let original = DocumentLibrary(fileManager: manager, launchArguments: [])
+        let personal = try original.create(markdown: false)
+        try original.saveText("Keep this document", document: personal)
+        let testing = DocumentLibrary(fileManager: manager, launchArguments: ["--uitesting-library"])
+        let testNote = try testing.create(markdown: false)
+        try testing.toggleFavorite(testNote)
+
+        let reset = DocumentLibrary(fileManager: manager,
+            launchArguments: ["--uitesting-library", "--uitesting-reset-library"])
+        XCTAssertNil(reset.errorMessage)
+        XCTAssertTrue(reset.documents.isEmpty)
+        XCTAssertTrue(manager.fileExists(atPath: root.appendingPathComponent("UITestLibrary").path))
+        XCTAssertFalse(manager.fileExists(atPath: testNote.url.path))
+        XCTAssertFalse(manager.fileExists(atPath: root.appendingPathComponent("UITestLibrary/favorites.json").path))
+        XCTAssertEqual(try original.readText(personal), "Keep this document")
+        XCTAssertEqual(DocumentLibrary(fileManager: manager, launchArguments: []).documents.map(\.id), [personal.id])
+    }
+
+    @MainActor
+    func testUITestingArgumentsCannotResetExplicitDirectory() throws {
+        let library = makeLibrary()
+        let note = try library.create(markdown: false)
+        try library.saveText("Explicit library", document: note)
+        let relaunched = DocumentLibrary(directory: root.appendingPathComponent("library"),
+            launchArguments: ["--uitesting-library", "--uitesting-reset-library"])
+        XCTAssertEqual(relaunched.documents.map(\.id), [note.id])
+        XCTAssertEqual(try relaunched.readText(note), "Explicit library")
+    }
+    #endif
+
     @MainActor
     func testImportsCopiesAndPreservesOfficeBytesAndDuplicateNames() throws {
         let source = root.appendingPathComponent("Sample.docx")
@@ -213,5 +281,19 @@ final class DocumentLibraryTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: first.url), original)
         XCTAssertThrowsError(try library.saveReadingState(["position": ["spineIndex": -1]], document: first))
         XCTAssertThrowsError(try library.saveReadingState(["viewPrefs": ["fontScale": 9.0, "lineHeight": 1.6, "dark": false]], document: first))
+    }
+}
+
+private final class LibraryTestFileManager: FileManager, @unchecked Sendable {
+    private let documentsDirectory: URL
+
+    init(documentsDirectory: URL) {
+        self.documentsDirectory = documentsDirectory
+        super.init()
+    }
+
+    override func urls(for directory: FileManager.SearchPathDirectory,
+                       in domainMask: FileManager.SearchPathDomainMask) -> [URL] {
+        directory == .documentDirectory ? [documentsDirectory] : super.urls(for: directory, in: domainMask)
     }
 }

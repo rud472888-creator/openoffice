@@ -1,3 +1,89 @@
+:root {
+  --surface: #ffffff;
+  --surface-subtle: #fafaf8;
+  --chrome-bg: #ffffff;
+  --canvas: #fafaf8;
+  --border: #e7e9ec;
+  --border-subtle: #eef0f2;
+  --border-strong: #d7dce2;
+  --border-hover: #c7ced7;
+  --text: #20242a;
+  --text-primary: #20242a;
+  --text-secondary: #68717d;
+  --text-muted: #68717d;
+  --text-dim: #68717d;
+  --hover: #f2f4f7;
+  --pressed: #e9edf4;
+  --active-bg: #eaf0ff;
+  --accent: #315be8;
+  --accent-dark: #2448c4;
+  --accent-soft: #eaf0ff;
+  --surface-hover: var(--hover);
+  --ribbon-hover: var(--hover);
+  --ribbon-active: var(--active-bg);
+  --sheets-statusbar-bg: var(--surface);
+  --sheets-statusbar-border: var(--border);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --surface: #202326;
+  --surface-subtle: #151719;
+  --chrome-bg: #202326;
+  --canvas: #151719;
+  --border: #33383e;
+  --border-subtle: #2b3035;
+  --border-strong: #454d57;
+  --border-hover: #596471;
+  --text: #edf0f4;
+  --text-primary: #edf0f4;
+  --text-secondary: #a4aebb;
+  --text-muted: #a4aebb;
+  --text-dim: #a4aebb;
+  --hover: #2b3036;
+  --pressed: #363e49;
+  --active-bg: #2b3856;
+  --accent: #89a5ff;
+  --accent-dark: #b3c5ff;
+  --accent-soft: #2b3856;
+  --surface-hover: var(--hover);
+  --ribbon-hover: var(--hover);
+  --ribbon-active: var(--active-bg);
+  --sheets-statusbar-bg: var(--surface);
+  --sheets-statusbar-border: var(--border);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --surface: #202326;
+    --surface-subtle: #151719;
+    --chrome-bg: #202326;
+    --canvas: #151719;
+    --border: #33383e;
+    --border-subtle: #2b3035;
+    --border-strong: #454d57;
+    --border-hover: #596471;
+    --text: #edf0f4;
+    --text-primary: #edf0f4;
+    --text-secondary: #a4aebb;
+    --text-muted: #a4aebb;
+    --text-dim: #a4aebb;
+    --hover: #2b3036;
+    --pressed: #363e49;
+    --active-bg: #2b3856;
+    --accent: #89a5ff;
+    --accent-dark: #b3c5ff;
+    --accent-soft: #2b3856;
+    --surface-hover: var(--hover);
+    --ribbon-hover: var(--hover);
+    --ribbon-active: var(--active-bg);
+    --sheets-statusbar-bg: var(--surface);
+    --sheets-statusbar-border: var(--border);
+    color-scheme: dark;
+  }
+}
+
 html,
 body,
 #app {
@@ -65,4 +151,48 @@ select {
   .ribbon-small-btn {
     min-height: 44px;
   }
+}
+
+/* Touch chrome stays outside the document grid and its export styles. */
+.app-shell > .excel-header {
+  border-bottom-color: var(--border);
+}
+.excel-header .ribbon-tabs {
+  gap: 4px;
+  padding: 6px 16px 2px;
+}
+.excel-header .ribbon-tabs > button:not(.qa-btn) {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-bottom: 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.excel-header .ribbon-tabs > button:not(.qa-btn).active {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.excel-header .ribbon-tabs > button:not(.qa-btn).active::after {
+  display: none;
+}
+.excel-header .ribbon-tabs .qa-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+.excel-header .ribbon {
+  padding-inline: 12px;
+}
+.excel-header .ribbon-group::after {
+  background: var(--border);
+}
+.excel-header .workbook-status {
+  font-size: 12px;
+}
+.app-shell > .status-bar {
+  min-height: 32px;
+  color: var(--text-secondary);
 }

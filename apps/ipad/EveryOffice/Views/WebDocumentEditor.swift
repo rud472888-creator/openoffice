@@ -12,10 +12,18 @@ struct WebDocumentEditor: View {
     var body: some View {
         VStack(spacing: 0) {
             OfficeWebView(library: library, document: document, resource: resource, kind: kind, saveRequest: saveRequest)
-            Text(LocalizedStringKey(library.savingDocumentIDs.contains(document.id) ? "Saving…" : library.readyDocumentIDs.contains(document.id) ? "Saved on this iPad" : "Opening…"))
-                .font(.caption).foregroundStyle(OfficeTheme.secondary)
-                .padding(12).frame(maxWidth: .infinity).background(OfficeTheme.subtle)
-                .accessibilityIdentifier(library.readyDocumentIDs.contains(document.id) && !library.savingDocumentIDs.contains(document.id) ? "webEditorReady" : "webEditorBusy")
+            HStack(spacing: 7) {
+                Image(systemName: library.savingDocumentIDs.contains(document.id) ? "arrow.triangle.2.circlepath" : "checkmark.circle")
+                    .font(.system(size: 11))
+                Text(LocalizedStringKey(library.savingDocumentIDs.contains(document.id) ? "Saving…" : library.readyDocumentIDs.contains(document.id) ? "Saved on this iPad" : "Opening…"))
+                    .accessibilityIdentifier(library.readyDocumentIDs.contains(document.id) && !library.savingDocumentIDs.contains(document.id) ? "webEditorReady" : "webEditorBusy")
+                Spacer()
+                Text(verbatim: document.url.pathExtension.uppercased())
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+            }
+            .font(.caption2).foregroundStyle(OfficeTheme.secondary)
+            .padding(.horizontal, 20).padding(.vertical, 8)
+            .background(OfficeTheme.surface)
         }
         .toolbar {
             ToolbarItem(placement: .secondaryAction) {
